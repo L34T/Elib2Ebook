@@ -2,11 +2,14 @@ using System;
 using EpubSharp;
 using EpubSharp.Format;
 
-namespace Core.Extensions; 
+namespace Core.Extensions;
 
-public static class ImageFormatExtensions {
-    public static EpubContentType ToEpubContentType(this ImageFormat self) {
-        return self switch {
+public static class ImageFormatExtensions
+{
+    public static EpubContentType ToEpubContentType(this ImageFormat self)
+    {
+        return self switch
+        {
             ImageFormat.Gif => EpubContentType.ImageGif,
             ImageFormat.Png => EpubContentType.ImagePng,
             ImageFormat.Jpeg => EpubContentType.ImageJpeg,

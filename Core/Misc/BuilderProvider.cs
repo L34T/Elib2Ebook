@@ -5,9 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Core.Misc;
 
-public static class BuilderProvider {
-    public static BuilderBase Get(string format, Options options, ILogger logger) {
-        return format.Trim().ToLower() switch {
+public static class BuilderProvider
+{
+    public static BuilderBase Get(string format, Options options, ILogger logger)
+    {
+        return format.Trim().ToLowerInvariant() switch
+        {
             "fb2" => new Fb2Builder(options, logger),
             "epub" => new EpubBuilder(options, logger),
             "json" => new JsonBuilder(options, logger),

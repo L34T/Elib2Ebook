@@ -8,26 +8,32 @@ using Core.Types.Common;
 using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 
-namespace Core.Logic.Getters.TopLiba; 
+namespace Core.Logic.Getters.TopLiba;
 
-public class BiglibaGetter(BookGetterConfig config) : TopLibaGetterBase(config) {
+public class BiglibaGetter(BookGetterConfig config) : TopLibaGetterBase(config)
+{
     protected override Uri SystemUrl => new("https://bigliba.com/");
 
-    protected override Seria GetSeria(HtmlDocument doc, Uri url) {
+    protected override Seria GetSeria(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("div.book-series a");
-        if (a != default) {
+        if (a is not null)
+        {
             var text = a.GetText();
-            
-            if (text.Contains('#')) {
+
+            if (text.Contains('#'))
+            {
                 var parts = text.Split(':').Last().Split("(#");
-                return new Seria {
+                return new Seria
+                {
                     Name = parts[0].Trim(),
                     Number = parts[1].Trim(')').Trim(),
                     Url = url.MakeRelativeUri(a.Attributes["href"].Value)
                 };
             }
 
-            return new Seria {
+            return new Seria
+            {
                 Name = text,
                 Url = url.MakeRelativeUri(a.Attributes["href"].Value)
             };
@@ -36,8 +42,11 @@ public class BiglibaGetter(BookGetterConfig config) : TopLibaGetterBase(config) 
         return default;
     }
 
-    protected override Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
+    protected override Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
         var imagePath = doc.QuerySelector("img[itemprop=image]")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 }

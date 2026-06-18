@@ -12,25 +12,29 @@ using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 using Microsoft.Extensions.Logging;
 
-namespace Core.Logic.Getters.HotNovelPub; 
+namespace Core.Logic.Getters.HotNovelPub;
 
-public abstract class HotNovelPubGetterBase(BookGetterConfig config) : GetterBase(config) {
+public abstract class HotNovelPubGetterBase(BookGetterConfig config) : GetterBase(config)
+{
     protected abstract string Lang { get; }
 
     private Uri _apiUrl => new($"https://api.{SystemUrl.Host}/");
 
-    public override Task Init() {
+    public override Task Init()
+    {
         base.Init();
         Config.Client.DefaultRequestHeaders.Add("lang", Lang);
         Config.Client.DefaultRequestHeaders.Add("Priority", "u=3, i");
         return Task.CompletedTask;
     }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         url = await GetMainUrl(url);
         var bookApi = await GetBook(GetId(url));
 
-        var book = new Book(url) {
+        var book = new Book(url)
+        {
             Cover = await GetCover(bookApi.Book),
             Chapters = await FillChapters(bookApi.Chapters),
             Title = bookApi.Book.Name,
@@ -42,27 +46,30 @@ public abstract class HotNovelPubGetterBase(BookGetterConfig config) : GetterBas
         return book;
     }
 
-    private async Task<Uri> GetMainUrl(Uri url) {
-        if (GetId(url).StartsWith("chapter-")) {
+    private async Task<Uri> GetMainUrl(Uri url)
+    {
+        if (GetId(url).StartsWith("chapter-"))
+        {
             var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
             var a = doc.QuerySelectorAll("li.breadcrumb-item")[1].QuerySelector("a[href]");
             url = SystemUrl.MakeRelativeUri(a.Attributes["href"].Value);
         }
-        
+
         return url;
     }
 
-    private async Task<IEnumerable<Chapter>> FillChapters(ICollection<HotNovelPubChapter> toc) {
+    private async Task<IEnumerable<Chapter>> FillChapters(ICollection<HotNovelPubChapter> toc)
+    {
         var result = new List<Chapter>();
-        if (Config.Options.NoChapters) {
-            return result;
-        }
-        
-        foreach (var ezChapter in SliceToc(toc, c => c.Title)) {
+        if (Config.Options.NoChapters) return result;
+
+        foreach (var ezChapter in SliceToc(toc, c => c.Title))
+        {
             var title = ezChapter.Title.Trim();
             Config.Logger.LogInformation($"Загружаю главу {title.CoverQuotes()}");
-            
-            var chapter = new Chapter {
+
+            var chapter = new Chapter
+            {
                 Title = title
             };
 
@@ -72,37 +79,45 @@ public abstract class HotNovelPubGetterBase(BookGetterConfig config) : GetterBas
 
             result.Add(chapter);
         }
-            
+
         return result;
     }
 
-    private async Task<HtmlDocument> GetChapter(HotNovelPubChapter ezChapter) {
+    private async Task<HtmlDocument> GetChapter(HotNovelPubChapter ezChapter)
+    {
         var doc = Config.Client.GetHtmlDocWithTriesAsync(SystemUrl.MakeRelativeUri(ezChapter.Slug));
-        var additional = Config.Client.GetFromJsonAsync<HotNovelPubApiResponse<string[]>>(SystemUrl.MakeRelativeUri($"/server/getContent?slug={ezChapter.Slug}"));
-        
-        const string watermark = ".copy right hot novel pub";
-        var sb = new StringBuilder((await doc).QuerySelector("#content-item").InnerHtml.HtmlDecode().CleanInvalidXmlChars().Replace(watermark, string.Empty));
+        var additional =
+            Config.Client.GetFromJsonAsync<HotNovelPubApiResponse<string[]>>(
+                SystemUrl.MakeRelativeUri($"/server/getContent?slug={ezChapter.Slug}"));
 
-        
-        foreach (var row in (await additional)!.Data) {
-            foreach (var p in row.Split("\n", StringSplitOptions.RemoveEmptyEntries)) {
-                sb.Append(p.HtmlDecode().CleanInvalidXmlChars().Replace(watermark, string.Empty).Trim().CoverTag("p"));
-            }
-        }
+        const string watermark = ".copy right hot novel pub";
+        var sb = new StringBuilder((await doc).QuerySelector("#content-item").InnerHtml.HtmlDecode()
+            .CleanInvalidXmlChars().Replace(watermark, string.Empty));
+
+        foreach (var row in (await additional)!.Data)
+        foreach (var p in row.Split("\n", StringSplitOptions.RemoveEmptyEntries))
+            sb.Append(p.HtmlDecode().CleanInvalidXmlChars().Replace(watermark, string.Empty).Trim().CoverTag("p"));
 
         return sb.AsHtmlDoc();
     }
 
-    private Author GetAuthor(HotNovelPubBook book) {
+    private Author GetAuthor(HotNovelPubBook book)
+    {
         return new Author(book.Authorize.Name, SystemUrl.MakeRelativeUri(book.Authorize.Slug));
     }
 
-    private Task<TempFile> GetCover(HotNovelPubBook book) {
-        return !string.IsNullOrWhiteSpace(book.Image) ? SaveImage(SystemUrl.MakeRelativeUri(book.Image)) : Task.FromResult(default(TempFile));
+    private Task<TempFile> GetCover(HotNovelPubBook book)
+    {
+        return !string.IsNullOrWhiteSpace(book.Image)
+            ? SaveImage(SystemUrl.MakeRelativeUri(book.Image))
+            : Task.FromResult(default(TempFile));
     }
 
-    private async Task<HotNovelPubBookResponse> GetBook(string id) {
-        var response = await Config.Client.GetFromJsonAsync<HotNovelPubApiResponse<HotNovelPubBookResponse>>(_apiUrl.MakeRelativeUri($"/book/{id}"));
+    private async Task<HotNovelPubBookResponse> GetBook(string id)
+    {
+        var response =
+            await Config.Client.GetFromJsonAsync<HotNovelPubApiResponse<HotNovelPubBookResponse>>(
+                _apiUrl.MakeRelativeUri($"/book/{id}"));
         return response!.Data;
     }
 }

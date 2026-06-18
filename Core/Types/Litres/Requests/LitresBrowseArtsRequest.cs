@@ -1,7 +1,9 @@
-namespace Core.Types.Litres.Requests; 
+namespace Core.Types.Litres.Requests;
 
-public class LitresBrowseArtsRequest : LitresRequestBase<LitresBrowseArtsData> {
-    public LitresBrowseArtsRequest(string[] id) {
+public class LitresBrowseArtsRequest : LitresRequestBase<LitresBrowseArtsData>
+{
+    public LitresBrowseArtsRequest(string[] id)
+    {
         Func = "r_browse_arts";
         Param.Currency = "RUB";
         Param.Anno = "1";

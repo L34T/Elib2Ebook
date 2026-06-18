@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
 
-namespace Core.Types.Bookriver; 
+namespace Core.Types.Bookriver;
 
-public class BookRiverBook {
+public class BookRiverBook
+{
     [JsonPropertyName("currentGraphqlBook")]
     public BookRiverCurrentBook Book { get; set; }
 }

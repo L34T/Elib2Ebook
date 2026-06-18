@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace Core.Types.Dreame; 
+namespace Core.Types.Dreame;
 
-public class DreameCatalog {
-    [JsonPropertyName("pager")]
-    public DreamePager Pager { get; set; }
+public class DreameCatalog
+{
+    [JsonPropertyName("pager")] public DreamePager Pager { get; set; }
 }

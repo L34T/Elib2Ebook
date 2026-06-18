@@ -1,15 +1,17 @@
 using System.Text;
 using HtmlAgilityPack;
 
-namespace Core.Extensions; 
+namespace Core.Extensions;
 
-public static class StringBuilderExtensions {
+public static class StringBuilderExtensions
+{
     /// <summary>
-    /// Конвертация строки в Html документ
+    ///     Конвертация строки в Html документ
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static HtmlDocument AsHtmlDoc(this StringBuilder self) {
+    public static HtmlDocument AsHtmlDoc(this StringBuilder self)
+    {
         return self.ToString().AsHtmlDoc();
     }
 }

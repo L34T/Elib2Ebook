@@ -7,26 +7,30 @@ using Core.Types.Common;
 using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 
-namespace Core.Logic.Getters.TopLiba; 
+namespace Core.Logic.Getters.TopLiba;
 
-public class TopLibaGetter(BookGetterConfig config) : TopLibaGetterBase(config) {
+public class TopLibaGetter(BookGetterConfig config) : TopLibaGetterBase(config)
+{
     protected override Uri SystemUrl => new("https://topliba.com/");
 
-    protected override Seria GetSeria(HtmlDocument doc, Uri url) {
+    protected override Seria GetSeria(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("div.book-series a");
-        if (a != default) {
+        if (a is not null)
+        {
             var text = a.GetText();
             var number = a.NextSibling;
-            
-            if (number != default && number.GetText().Contains('#')) {
-                return new Seria {
+
+            if (number is not null && number.GetText().Contains('#'))
+                return new Seria
+                {
                     Name = text,
                     Number = number.GetText().Replace("(", "").Replace(")", "").Replace("#", ""),
                     Url = url.MakeRelativeUri(a.Attributes["href"].Value)
                 };
-            }
 
-            return new Seria {
+            return new Seria
+            {
                 Name = text,
                 Url = url.MakeRelativeUri(a.Attributes["href"].Value)
             };
@@ -35,8 +39,11 @@ public class TopLibaGetter(BookGetterConfig config) : TopLibaGetterBase(config) 
         return default;
     }
 
-    protected override Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
+    protected override Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
         var imagePath = doc.QuerySelector("img[itemprop=contentUrl]")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 }

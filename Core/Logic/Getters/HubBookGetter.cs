@@ -10,40 +10,46 @@ using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 using Microsoft.Extensions.Logging;
 
-namespace Core.Logic.Getters; 
+namespace Core.Logic.Getters;
 
-public class HubBookGetter(BookGetterConfig config) : GetterBase(config) {
+public class HubBookGetter(BookGetterConfig config) : GetterBase(config)
+{
     protected override Uri SystemUrl => new("https://hub-book.com/");
 
-    protected override string GetId(Uri url) => url.GetSegment(2);
+    protected override string GetId(Uri url)
+    {
+        return url.GetSegment(2);
+    }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         url = SystemUrl.MakeRelativeUri($"/books/{GetId(url)}");
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
 
         var author = GetAuthor(doc, url);
         var title = doc.GetTextBySelector("h1").Replace(author.Name, string.Empty).Trim('-', ' ');
 
-        var book = new Book(url) {
+        var book = new Book(url)
+        {
             Cover = await GetCover(doc, url),
             Chapters = await FillChapters(doc, url, title),
             Title = title,
             Author = author,
-            Annotation = doc.QuerySelector("div.b-book-desc div.more_text")?.InnerHtml,
+            Annotation = doc.QuerySelector("div.b-book-desc div.more_text")?.InnerHtml
         };
-            
+
         return book;
     }
 
-    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri url, string title) {
-        if (Config.Options.NoChapters) {
-            return [];
-        }
-        
+    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri url, string title)
+    {
+        if (Config.Options.NoChapters) return [];
+
         var pages = int.Parse(doc.GetTextBySelector("span[itemprop=numberOfPages]"));
         var text = new StringBuilder();
 
-        for (var i = 1; i <= pages; i++) {
+        for (var i = 1; i <= pages; i++)
+        {
             Config.Logger.LogInformation($"Получаю страницу {i}/{pages}");
             doc = await Config.Client.GetHtmlDocWithTriesAsync(url.AppendSegment($"/toread/page-{i}"));
             text.Append(doc.QuerySelector("div.b-reader-text__container").InnerHtml.HtmlDecode());
@@ -51,7 +57,7 @@ public class HubBookGetter(BookGetterConfig config) : GetterBase(config) {
 
         var chapter = new Chapter();
         var chapterDoc = text.AsHtmlDoc();
-        
+
         chapter.Title = title;
         chapter.Images = await GetImages(chapterDoc, url);
         chapter.Content = chapterDoc.DocumentNode.InnerHtml;
@@ -59,12 +65,16 @@ public class HubBookGetter(BookGetterConfig config) : GetterBase(config) {
         return new[] { chapter };
     }
 
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
         var imagePath = doc.QuerySelector("div.b-book-image img")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
-    
-    private static Author GetAuthor(HtmlDocument doc, Uri uri) {
+
+    private static Author GetAuthor(HtmlDocument doc, Uri uri)
+    {
         var a = doc.QuerySelector("a.b-book-user__name");
         return new Author(a.GetText(), uri.MakeRelativeUri(a.Attributes["href"].Value));
     }

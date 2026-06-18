@@ -12,18 +12,24 @@ using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 using Microsoft.Extensions.Logging;
 
-namespace Core.Logic.Getters; 
+namespace Core.Logic.Getters;
 
-public class BookInBookGetter(BookGetterConfig config) : GetterBase(config) {
+public class BookInBookGetter(BookGetterConfig config) : GetterBase(config)
+{
     protected override Uri SystemUrl => new("https://bookinbook.ru/");
 
-    protected override string GetId(Uri url) => url.GetQueryParameter("id");
+    protected override string GetId(Uri url)
+    {
+        return url.GetQueryParameter("id");
+    }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         url = SystemUrl.MakeRelativeUri($"book?id={GetId(url)}");
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
-        
-        var book = new Book(url) {
+
+        var book = new Book(url)
+        {
             Cover = await GetCover(doc, url),
             Chapters = await FillChapters(doc, url),
             Title = doc.GetTextBySelector("span.main-info__name"),
@@ -31,20 +37,20 @@ public class BookInBookGetter(BookGetterConfig config) : GetterBase(config) {
             Annotation = doc.QuerySelector("div.annotation-form__text")?.InnerHtml,
             Seria = GetSeria(doc)
         };
-            
+
         return book;
     }
-    
-    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri uri) {
-        var result = new List<Chapter>();
-        if (Config.Options.NoChapters) {
-            return result;
-        }
 
-        foreach (var bookChapter in GetToc(doc, uri)) {
+    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri uri)
+    {
+        var result = new List<Chapter>();
+        if (Config.Options.NoChapters) return result;
+
+        foreach (var bookChapter in GetToc(doc, uri))
+        {
             var chapter = new Chapter();
             Config.Logger.LogInformation($"Загружаю главу {bookChapter.Title.CoverQuotes()}");
-            
+
             var chapterDoc = await GetChapter(bookChapter.Url);
 
             chapter.Title = bookChapter.Title;
@@ -56,58 +62,63 @@ public class BookInBookGetter(BookGetterConfig config) : GetterBase(config) {
 
         return result;
     }
-    
-    private async Task<HtmlDocument> GetChapter(Uri url) {
+
+    private async Task<HtmlDocument> GetChapter(Uri url)
+    {
         var sb = new StringBuilder();
-        
-        for (var i = 1; ; i++) {
-            var uri = SystemUrl.MakeRelativeUri($"read?id={url.GetQueryParameter("id")}&chapter={url.GetQueryParameter("chapter")}&page={i}");
+
+        for (var i = 1;; i++)
+        {
+            var uri = SystemUrl.MakeRelativeUri(
+                $"read?id={url.GetQueryParameter("id")}&chapter={url.GetQueryParameter("chapter")}&page={i}");
             using var response = await Config.Client.GetWithTriesAsync(uri, TimeSpan.FromMilliseconds(100));
-            if (response == default) {
-                return sb.AsHtmlDoc();
-            }
+            if (response is null) return sb.AsHtmlDoc();
 
             var doc = await response.Content.ReadAsStreamAsync().ContinueWith(t => t.Result.AsHtmlDoc());
             var text = doc.GetTextBySelector("#PAGE_TEXT").Deserialize<string>().HtmlDecode();
             using var sr = new StringReader(text);
-            
-            while (true) {
-                var line = await sr.ReadLineAsync();
-                if (line == null) {
-                    break;
-                }
 
-                if (string.IsNullOrWhiteSpace(line)) {
-                    continue;
-                }
-                
+            while (true)
+            {
+                var line = await sr.ReadLineAsync();
+                if (line == null) break;
+
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
                 sb.Append(line.CoverTag("p"));
             }
         }
     }
 
-    private IEnumerable<UrlChapter> GetToc(HtmlDocument doc, Uri url) {
-        var urlChapters = doc.QuerySelectorAll("a.chapters-form__chapter").Select(a => new UrlChapter(url.MakeRelativeUri(a.Attributes["href"].Value), a.GetText().ReplaceNewLine())).ToList();
+    private IEnumerable<UrlChapter> GetToc(HtmlDocument doc, Uri url)
+    {
+        var urlChapters = doc.QuerySelectorAll("a.chapters-form__chapter").Select(a =>
+            new UrlChapter(url.MakeRelativeUri(a.Attributes["href"].Value), a.GetText().ReplaceNewLine())).ToList();
         return SliceToc(urlChapters, c => c.Title);
     }
-    
-    private static Seria GetSeria(HtmlDocument doc) {
+
+    private static Seria GetSeria(HtmlDocument doc)
+    {
         var a = doc.QuerySelector("span.series-info__name");
-        if (a != default) {
-            return new Seria {
+        if (a is not null)
+            return new Seria
+            {
                 Name = a.GetText()
             };
-        }
 
         return default;
     }
-    
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
+
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
         var imagePath = doc.QuerySelector("img.book-cover__image")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
-    
-    private static Author GetAuthor(HtmlDocument doc, Uri uri) {
+
+    private static Author GetAuthor(HtmlDocument doc, Uri uri)
+    {
         var a = doc.QuerySelector("a.author");
         return new Author(a.GetText(), uri.MakeRelativeUri(a.Attributes["href"].Value));
     }

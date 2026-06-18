@@ -18,37 +18,37 @@ namespace Core.Logic.Builders;
 
 public class Fb2Builder : BuilderBase
 {
-    protected override string Extension => "fb2";
-
-    private readonly XNamespace _ns = "http://www.gribuser.ru/xml/fictionbook/2.0";
-    private readonly XNamespace _xlink = "http://www.w3.org/1999/xlink";
+    private readonly XElement _body;
+    private readonly XElement _customInfo;
 
     private readonly XElement _description;
-    private readonly XElement _titleInfo;
-    private readonly XElement _body;
     private readonly XElement _documentInfo;
-    private readonly XElement _customInfo;
     private readonly List<TempFile> _images = new();
 
-    private readonly Dictionary<string, string> _map = new() {
-        {"strong", "strong"},
-        {"b", "strong"},
-        {"i", "emphasis"},
-        {"em", "emphasis"},
-        {"emphasis", "emphasis"},
-        {"del", "strikethrough"},
-        {"strikethrough", "strikethrough"},
-        {"blockquote", "cite"},
-        {"h1", "subtitle"},
-        {"h2", "subtitle"},
-        {"h3", "subtitle"},
-        {"h4", "subtitle"},
-        {"h5", "subtitle"},
-        {"h6", "subtitle"},
-        {"p", "p"},
-        {"div", "p"},
-        {"u", "u"},
+    private readonly Dictionary<string, string> _map = new()
+    {
+        { "strong", "strong" },
+        { "b", "strong" },
+        { "i", "emphasis" },
+        { "em", "emphasis" },
+        { "emphasis", "emphasis" },
+        { "del", "strikethrough" },
+        { "strikethrough", "strikethrough" },
+        { "blockquote", "cite" },
+        { "h1", "subtitle" },
+        { "h2", "subtitle" },
+        { "h3", "subtitle" },
+        { "h4", "subtitle" },
+        { "h5", "subtitle" },
+        { "h6", "subtitle" },
+        { "p", "p" },
+        { "div", "p" },
+        { "u", "u" }
     };
+
+    private readonly XNamespace _ns = "http://www.gribuser.ru/xml/fictionbook/2.0";
+    private readonly XElement _titleInfo;
+    private readonly XNamespace _xlink = "http://www.w3.org/1999/xlink";
 
     public Fb2Builder(Options options, ILogger logger) : base(options, logger)
     {
@@ -58,6 +58,8 @@ public class Fb2Builder : BuilderBase
         _customInfo = CreateXElement("custom-info");
         _body = CreateXElement("body");
     }
+
+    protected override string Extension => "fb2";
 
     private XElement CreateXElement(string name)
     {
@@ -86,7 +88,7 @@ public class Fb2Builder : BuilderBase
             authorElem.Add(firstName);
         }
 
-        if (author.Url != default)
+        if (author.Url is not null)
         {
             var homePageElem = CreateXElement("home-page");
             homePageElem.Value = author.Url.ToString();
@@ -116,7 +118,8 @@ public class Fb2Builder : BuilderBase
         await using var inputFile = tempFile.GetStream();
         await writer.WriteStartElementAsync(null, "binary", null);
         await writer.WriteAttributeStringAsync(null, "id", null, tempFile.FullName);
-        await writer.WriteAttributeStringAsync(null, "content-type", null, "image/" + tempFile.Extension.TrimStart('.'));
+        await writer.WriteAttributeStringAsync(null, "content-type", null,
+            "image/" + tempFile.Extension.TrimStart('.'));
         using var br = new BinaryReader(inputFile);
 
         do
@@ -129,7 +132,7 @@ public class Fb2Builder : BuilderBase
     }
 
     /// <summary>
-    /// Добавление автора книги
+    ///     Добавление автора книги
     /// </summary>
     /// <param name="author">Автор</param>
     /// <returns></returns>
@@ -141,7 +144,7 @@ public class Fb2Builder : BuilderBase
     }
 
     /// <summary>
-    /// Добавление со-авторов книги
+    ///     Добавление со-авторов книги
     /// </summary>
     /// <param name="coAuthors">Со-авторы</param>
     /// <returns></returns>
@@ -156,7 +159,7 @@ public class Fb2Builder : BuilderBase
     }
 
     /// <summary>
-    /// Указание названия книги
+    ///     Указание названия книги
     /// </summary>
     /// <param name="title">Название книги</param>
     /// <returns></returns>
@@ -170,13 +173,13 @@ public class Fb2Builder : BuilderBase
     }
 
     /// <summary>
-    /// Добавление обложки книги
+    ///     Добавление обложки книги
     /// </summary>
     /// <param name="cover">Обложка</param>
     /// <returns></returns>
     private void WithCover(TempFile cover)
     {
-        if (cover != default)
+        if (cover is not null)
         {
             var coverPage = CreateXElement("coverpage");
 
@@ -191,7 +194,7 @@ public class Fb2Builder : BuilderBase
 
     private void WithBookUrl(Uri url)
     {
-        if (url != default)
+        if (url is not null)
         {
             var srcUrlElem = CreateXElement("src-url");
             srcUrlElem.Value = url.ToString().CleanInvalidXmlChars();
@@ -201,10 +204,7 @@ public class Fb2Builder : BuilderBase
 
     private void WithAnnotation(string annotation)
     {
-        if (!string.IsNullOrWhiteSpace(annotation))
-        {
-            _titleInfo.Add(CreateAnnotation(annotation));
-        }
+        if (!string.IsNullOrWhiteSpace(annotation)) _titleInfo.Add(CreateAnnotation(annotation));
     }
 
     private XElement CreateAnnotation(string annotation)
@@ -213,18 +213,14 @@ public class Fb2Builder : BuilderBase
 
         var doc = annotation.AsHtmlDoc();
         foreach (var node in doc.DocumentNode.ChildNodes)
-        {
             if (!string.IsNullOrWhiteSpace(node.InnerText))
-            {
                 ProcessSection(a, node, "p");
-            }
-        }
 
         return a;
     }
 
     /// <summary>
-    /// Добавление списка частей книги
+    ///     Добавление списка частей книги
     /// </summary>
     /// <param name="chapters">Список частей</param>
     /// <returns></returns>
@@ -236,23 +232,17 @@ public class Fb2Builder : BuilderBase
             section.Add(CreateTitle(chapter.Title));
 
             var doc = chapter.Content.AsHtmlDoc();
-            foreach (var node in doc.DocumentNode.ChildNodes)
-            {
-                ProcessSection(section, node);
-            }
+            foreach (var node in doc.DocumentNode.ChildNodes) ProcessSection(section, node);
 
             _body.Add(section);
 
-            foreach (var image in chapter.Images)
-            {
-                _images.Add(image);
-            }
+            foreach (var image in chapter.Images) _images.Add(image);
         }
     }
 
     private void WithSeria(Seria seria)
     {
-        if (seria != default)
+        if (seria is not null)
         {
             var sequenceElem = CreateXElement("sequence");
             sequenceElem.SetAttributeValue("name", seria.Name.CleanInvalidXmlChars());
@@ -260,7 +250,7 @@ public class Fb2Builder : BuilderBase
             _titleInfo.Add(sequenceElem);
             // seria url
             var SeriaUrl = seria.Url.ToString();
-            if( !string.IsNullOrWhiteSpace(SeriaUrl) && SeriaUrl.Length > 14 )
+            if (!string.IsNullOrWhiteSpace(SeriaUrl) && SeriaUrl.Length > 14)
             {
                 _customInfo.SetAttributeValue("info-type", "sequence-url");
                 _customInfo.Add(SeriaUrl.CleanInvalidXmlChars());
@@ -332,25 +322,16 @@ public class Fb2Builder : BuilderBase
         {
             var section = CreateXElement(_map.GetValueOrDefault(node.Name, "p"));
 
-            foreach (var child in node.ChildNodes)
-            {
-                ProcessSection(IsTextNode(node) ? parent : section, child);
-            }
+            foreach (var child in node.ChildNodes) ProcessSection(IsTextNode(node) ? parent : section, child);
 
-            if (!section.IsEmpty)
-            {
-                parent.Add(section);
-            }
+            if (!section.IsEmpty) parent.Add(section);
 
             return;
         }
 
         if (node.Name == "img")
         {
-            if (node.Attributes["src"] == null)
-            {
-                return;
-            }
+            if (node.Attributes["src"] == null) return;
 
             var imageElem = CreateXElement("image");
             imageElem.SetAttributeValue(_xlink + "href", "#" + node.Attributes["src"].Value);
@@ -360,15 +341,9 @@ public class Fb2Builder : BuilderBase
         }
 
         var nodeText = node.InnerText.HtmlDecode().CleanInvalidXmlChars();
-        if (node.InnerText.StartsWith(" "))
-        {
-            nodeText = " " + nodeText;
-        }
+        if (node.InnerText.StartsWith(" ")) nodeText = " " + nodeText;
 
-        if (node.InnerText.EndsWith(" "))
-        {
-            nodeText += " ";
-        }
+        if (node.InnerText.EndsWith(" ")) nodeText += " ";
 
         if (IsTextNode(node))
         {
@@ -410,7 +385,6 @@ public class Fb2Builder : BuilderBase
         return dateElem;
     }
 
-
     protected override async Task BuildInternal(Book book, string fileName)
     {
         await using var file = File.Create(fileName);
@@ -434,10 +408,7 @@ public class Fb2Builder : BuilderBase
         _description.Add(_titleInfo);
         _description.Add(_documentInfo);
 
-        if( !string.IsNullOrEmpty(_customInfo.Value) )
-        {
-            _description.Add(_customInfo);
-        }
+        if (!string.IsNullOrEmpty(_customInfo.Value)) _description.Add(_customInfo);
 
         var xws = new XmlWriterSettings
         {
@@ -445,7 +416,7 @@ public class Fb2Builder : BuilderBase
             Encoding = new UTF8Encoding(false),
             Indent = true,
             NewLineHandling = NewLineHandling.Replace,
-            NewLineChars = "\r\n",
+            NewLineChars = "\r\n"
         };
 
         await using var writer = XmlWriter.Create(file, xws);
@@ -456,10 +427,7 @@ public class Fb2Builder : BuilderBase
 
         await _description.WriteToAsync(writer, cancellationToken);
         await _body.WriteToAsync(writer, cancellationToken);
-        foreach (var image in _images)
-        {
-            await WriteBinary(writer, image);
-        }
+        foreach (var image in _images) await WriteBinary(writer, image);
 
         await writer.WriteEndElementAsync();
         await writer.FlushAsync();
@@ -475,26 +443,26 @@ public class Fb2Builder : BuilderBase
         WithCover(book.Cover);
         WithLang(book.Lang);
         WithSeria(book.Seria);
-        
+
         _documentInfo.Add(GetDateElement(DateTime.Today));
-        
+
         var programUsed = CreateXElement("program-used");
         programUsed.Value = "Elib2Ebook";
         _documentInfo.Add(programUsed);
-        
+
         _description.Add(_titleInfo);
         _description.Add(_documentInfo);
-        
-        var xws = new XmlWriterSettings {
+
+        var xws = new XmlWriterSettings
+        {
             Async = true,
             Encoding = new UTF8Encoding(false),
             Indent = true,
             NewLineHandling = NewLineHandling.Replace,
-            NewLineChars = "\r\n",
+            NewLineChars = "\r\n"
         };
 
         if (Options.SplitVolumes && Options.SplitChapters)
-        {
             foreach (var volumeNumber in book.Volumes)
             {
                 var volume_name = $"{fileName}.v{volumeNumber}.{Extension}";
@@ -519,9 +487,7 @@ public class Fb2Builder : BuilderBase
                 Logger.LogInformation($"Книга {volume_name} успешно сохранена");
                 volume_file.Dispose();
             }
-        }
         else if (Options.SplitVolumes)
-        {
             foreach (var volumeNumber in book.Volumes)
             {
                 var volume_name = $"{fileName}.v{volumeNumber}.{Extension}";
@@ -536,9 +502,7 @@ public class Fb2Builder : BuilderBase
 
                 volume_file.Dispose();
             }
-        }
         else if (Options.SplitChapters)
-        {
             foreach (var chapter in book.Chapters)
             {
                 var chapter_name = $"{fileName}.v{chapter.VolumeNumber}.c{chapter.ChapterNumber}.{Extension}";
@@ -550,11 +514,8 @@ public class Fb2Builder : BuilderBase
 
                 chapter_file.Dispose();
             }
-        }
         else
-        {
             await BuildInternal(book, fileName);
-        }
     }
 
     protected async Task BuildPart(IEnumerable<Chapter> chapters, FileStream file, XmlWriterSettings xws)
@@ -569,10 +530,7 @@ public class Fb2Builder : BuilderBase
 
         await _description.WriteToAsync(writer, cancellationToken);
         await _body.WriteToAsync(writer, cancellationToken);
-        foreach (var image in _images)
-        {
-            await WriteBinary(writer, image);
-        }
+        foreach (var image in _images) await WriteBinary(writer, image);
 
         await writer.WriteEndElementAsync();
         await writer.FlushAsync();

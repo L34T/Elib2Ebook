@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace Core.Types.Renovels; 
+namespace Core.Types.Renovels;
 
-public class RenovelsPage {
-    [JsonPropertyName("link")]
-    public string Link { get; set; }
+public class RenovelsPage
+{
+    [JsonPropertyName("link")] public string Link { get; set; }
 }

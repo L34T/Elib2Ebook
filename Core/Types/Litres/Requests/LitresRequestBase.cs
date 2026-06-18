@@ -1,14 +1,12 @@
 using System.Text.Json.Serialization;
 
-namespace Core.Types.Litres.Requests; 
+namespace Core.Types.Litres.Requests;
 
-public abstract class LitresRequestBase<T> where T : new() {
-    [JsonPropertyName("id")] 
-    public string Id { get; set; } = "data";
-    
-    [JsonPropertyName("func")]
-    public string Func { get; set; }
-    
-    [JsonPropertyName("param")] 
-    public T Param { get; } = new();
+public abstract class LitresRequestBase<T> where T : new()
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = "data";
+
+    [JsonPropertyName("func")] public string Func { get; set; }
+
+    [JsonPropertyName("param")] public T Param { get; } = new();
 }

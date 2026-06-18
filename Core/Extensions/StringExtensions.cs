@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -9,33 +9,37 @@ using AngleSharp.Html;
 using AngleSharp.Html.Parser;
 using HtmlAgilityPack;
 
-namespace Core.Extensions; 
+namespace Core.Extensions;
 
-public static class StringExtensions {
+public static class StringExtensions
+{
     /// <summary>
-    /// Конвертация строки в Html документ
+    ///     Конвертация строки в Html документ
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static HtmlDocument AsHtmlDoc(this string self) {
+    public static HtmlDocument AsHtmlDoc(this string self)
+    {
         var doc = new HtmlDocument();
         doc.LoadHtml(self.HtmlDecode());
         return doc;
     }
 
     /// <summary>
-    /// Конвертация строки в Xhtml документ
+    ///     Конвертация строки в Xhtml документ
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static HtmlDocument AsXHtmlDoc(this string self) {
+    public static HtmlDocument AsXHtmlDoc(this string self)
+    {
         HtmlNode.ElementsFlags.Remove("style");
         HtmlNode.ElementsFlags.Remove("title");
 
-        var doc = new HtmlDocument {
+        var doc = new HtmlDocument
+        {
             OptionFixNestedTags = true,
             OptionAutoCloseOnEnd = true,
-            OptionOutputAsXml = true,
+            OptionOutputAsXml = true
         };
 
         doc.LoadHtml(self);
@@ -43,91 +47,103 @@ public static class StringExtensions {
     }
 
     /// <summary>
-    /// Удаление из строки запрещенных символов для пути
+    ///     Удаление из строки запрещенных символов для пути
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static string RemoveInvalidChars(this string self) {
+    public static string RemoveInvalidChars(this string self)
+    {
         var sb = new StringBuilder(self);
-        foreach (var invalidFileNameChar in Path.GetInvalidFileNameChars().Union(['"'])) {
+        foreach (var invalidFileNameChar in Path.GetInvalidFileNameChars().Union(['"']))
             sb.Replace(invalidFileNameChar, ' ');
-        }
 
         return sb.ToString().Trim().Trim('.').Trim();
     }
 
     /// <summary>
-    /// Обертывание строки кавычками
+    ///     Обертывание строки кавычками
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static string CoverQuotes(this string self) {
+    public static string CoverQuotes(this string self)
+    {
         return "\"" + self + "\"";
     }
-        
+
     /// <summary>
-    /// Обрезка строки
+    ///     Обрезка строки
     /// </summary>
     /// <param name="self"></param>
     /// <param name="lenght"></param>
     /// <returns></returns>
-    public static string Crop(this string self, int lenght) {
+    public static string Crop(this string self, int lenght)
+    {
         return self.Length > lenght ? self[..lenght] : self;
     }
 
     /// <summary>
-    /// HtmlDecode
+    ///     HtmlDecode
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static string HtmlDecode(this string self) {
-        if (string.IsNullOrWhiteSpace(self)) {
-            return self;
-        }
-        
+    public static string HtmlDecode(this string self)
+    {
+        if (string.IsNullOrWhiteSpace(self)) return self;
+
         var temp = HttpUtility.HtmlDecode(self.Replace("&gt;", "").Replace("&lt;", ""));
-        while (temp != self) {
+        while (temp != self)
+        {
             self = temp;
             temp = HttpUtility.HtmlDecode(self.Replace("&gt;", "").Replace("&lt;", ""));
         }
-        
+
         return self.Trim();
     }
 
-    public static string CoverTag(this string self, string tag) {
+    public static string CoverTag(this string self, string tag)
+    {
         return string.IsNullOrEmpty(tag) ? self : $"<{tag}>{self}</{tag}>";
     }
 
-    public static string CleanInvalidXmlChars(this string self) {
-        return string.IsNullOrWhiteSpace(self) ? self : Regex.Replace(self, "[\x00-\x08\x0B\x0C\x0E-\x1F\x26]", string.Empty, RegexOptions.Compiled);
+    public static string CleanInvalidXmlChars(this string self)
+    {
+        return string.IsNullOrWhiteSpace(self)
+            ? self
+            : Regex.Replace(self, "[\x00-\x08\x0B\x0C\x0E-\x1F\x26]", string.Empty, RegexOptions.Compiled);
     }
-    
-    public static string ReplaceNewLine(this string self) {
+
+    public static string ReplaceNewLine(this string self)
+    {
         return string.IsNullOrWhiteSpace(self) ? self : Regex.Replace(self, "\t|\n", " ").CollapseWhitespace().Trim();
     }
-        
+
     /// <summary>
-    /// HtmlEncode
+    ///     HtmlEncode
     /// </summary>
     /// <param name="self"></param>
     /// <returns></returns>
-    public static string HtmlEncode(this string self) {
+    public static string HtmlEncode(this string self)
+    {
         return HttpUtility.HtmlEncode(self.Trim());
     }
 
-    public static string CollapseWhitespace(this string self) {
+    public static string CollapseWhitespace(this string self)
+    {
         return !string.IsNullOrEmpty(self) ? Regex.Replace(self, @"\s+", " ") : self;
     }
 
-    public static T Deserialize<T>(this string self) {
+    public static T Deserialize<T>(this string self)
+    {
         return JsonSerializer.Deserialize<T>(self);
     }
 
-    public static Uri AsUri(this string self) {
-        return new(self);
+    public static Uri AsUri(this string self)
+    {
+        return new Uri(self);
     }
 
-    public static string PrettyHtml(this string self) {
+    public static string PrettyHtml(this string self)
+    {
         var document = new HtmlParser().ParseDocument(self);
 
         using var sw = new StringWriter();

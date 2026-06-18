@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Core.Configs;
+using Core.Exceptions;
 using Core.Extensions;
 using Core.Types.Book;
 using Core.Types.Common;
@@ -14,49 +15,51 @@ using Microsoft.Extensions.Logging;
 
 namespace Core.Logic.Getters;
 
-public class ProdamanGetter : GetterBase {
-    public ProdamanGetter(BookGetterConfig config) : base(config) {
+public class ProdamanGetter : GetterBase
+{
+    private static readonly Dictionary<int, char> Map = new();
+
+    public ProdamanGetter(BookGetterConfig config) : base(config)
+    {
         InitMap();
     }
 
     protected override Uri SystemUrl => new("https://prodaman.ru/");
-    
-    private static readonly Dictionary<int, char> Map = new();
 
-    private static void Append(string str, int start) {
-        for (var i = 0; i < str.Length; i++) {
-            Map[start + i] = str[i];
-        }
+    private static void Append(string str, int start)
+    {
+        for (var i = 0; i < str.Length; i++) Map[start + i] = str[i];
     }
-    
+
     /// <summary>
-    /// Авторизация в системе
+    ///     Авторизация в системе
     /// </summary>
     /// <exception cref="Exception"></exception>
-    public override async Task Authorize(){
-        if (!Config.HasCredentials) {
-            return;
-        }
+    public override async Task Authorize()
+    {
+        if (!Config.HasCredentials) return;
 
         var doc = await Config.Client.PostHtmlDocWithTriesAsync(SystemUrl.MakeRelativeUri("/login"), GetAuthData());
 
-        if (!string.IsNullOrWhiteSpace(doc.GetTextBySelector("p.error"))) {
-            throw new Exception("Не удалось авторизоваться");
-        }
+        if (!string.IsNullOrWhiteSpace(doc.GetTextBySelector("p.error")))
+            throw new Elib2EbookAuthException("Не удалось авторизоваться");
     }
-    
-    private FormUrlEncodedContent GetAuthData() {
-        var data = new Dictionary<string, string> {
+
+    private FormUrlEncodedContent GetAuthData()
+    {
+        var data = new Dictionary<string, string>
+        {
             ["email"] = Config.Options.Login,
             ["pass"] = Config.Options.Password,
-            ["remember"] = "on",
+            ["remember"] = "on"
         };
 
         return new FormUrlEncodedContent(data);
     }
-    
+
     // MAAAAAAGIC!!!
-    private static void InitMap() {
+    private static void InitMap()
+    {
         Append("ЕКЦДНСИПТЬЧЖФ", 0x02CB);
         Append("ЗЭЯГЛЙОЮУХРМЩ", 0x02DE);
         Append("е", 0x02EC);
@@ -117,12 +120,14 @@ public class ProdamanGetter : GetterBase {
         Append("нх,ьтзщядвусцшкмеэр.бл", 0x25D0);
     }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         url = SystemUrl.MakeRelativeUri(url.AbsolutePath);
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
 
         var title = doc.GetTextBySelector("h1");
-        var book = new Book(url) {
+        var book = new Book(url)
+        {
             Cover = await GetCover(doc, url),
             Chapters = await FillChapter(url, title),
             Title = title,
@@ -134,129 +139,140 @@ public class ProdamanGetter : GetterBase {
         return book;
     }
 
-    private static Author GetAuthor(HtmlDocument doc, Uri url) {
+    private static Author GetAuthor(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("a[data-widget-feisovet-author]");
-        if (a == default) {
-            return new Author("Prodaman");
-        }
+        if (a is null) return new Author("Prodaman");
 
         return new Author(a.GetText(), url.MakeRelativeUri(a.Attributes["href"].Value));
     }
 
-    private static Seria GetSeria(HtmlDocument doc, Uri url) {
+    private static Seria GetSeria(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("p.blog-info a[href*=/series/]");
-        if (a != default) {
-            return new Seria {
+        if (a is not null)
+            return new Seria
+            {
                 Name = a.GetText(),
                 Url = url.MakeRelativeUri(a.Attributes["href"].Value)
             };
-        }
 
         return default;
     }
 
-    private async Task<int> GetPages(Uri url) {
+    private async Task<int> GetPages(Uri url)
+    {
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url.AppendQueryParameter("nav", "ok"));
         var pages = doc.QuerySelectorAll("div.pageList a")
             .Where(a => int.TryParse(a.InnerText, out _))
             .Select(a => int.Parse(a.InnerText))
             .ToList();
-        
+
         return pages.Count > 0 ? pages.Max() : 1;
     }
-    
-    private static bool IsHeaderStart(IEnumerable<HtmlNode> nodes) {
+
+    private static bool IsHeaderStart(IEnumerable<HtmlNode> nodes)
+    {
         var firstNode = nodes.First();
         return firstNode.Name == "h3" && !string.IsNullOrWhiteSpace(firstNode.InnerText);
     }
-    
-    private static Chapter CreateChapter(string title) {
-        return new Chapter {
+
+    private static Chapter CreateChapter(string title)
+    {
+        return new Chapter
+        {
             Title = title
         };
     }
-    
-    private async Task AddChapter(ICollection<Chapter> chapters, Chapter chapter, StringBuilder text, Uri url) {
-        if (chapter == null) {
-            return;
-        }
-        
+
+    private async Task AddChapter(ICollection<Chapter> chapters, Chapter chapter, StringBuilder text, Uri url)
+    {
+        if (chapter == null) return;
+
         var chapterDoc = text.ToString().AsHtmlDoc();
         chapter.Images = await GetImages(chapterDoc, url);
         chapter.Content = chapterDoc.DocumentNode.InnerHtml;
         chapters.Add(chapter);
     }
 
-    private static string Decode(string encode) {
+    private static string Decode(string encode)
+    {
         return encode.Aggregate(new StringBuilder(), (sb, c) => sb.Append(Map.GetValueOrDefault(c, c))).ToString();
     }
 
-    private async Task<IEnumerable<Chapter>> FillChapter(Uri url, string title) {
+    private async Task<IEnumerable<Chapter>> FillChapter(Uri url, string title)
+    {
         var result = new List<Chapter>();
-        if (Config.Options.NoChapters) {
-            return result;
-        }
-        
+        if (Config.Options.NoChapters) return result;
+
         Chapter chapter = null;
         var text = new StringBuilder();
 
         var pages = await GetPages(url);
         var firstBr = true;
-        for (var i = 1; i <= pages; i++) {
+        for (var i = 1; i <= pages; i++)
+        {
             Config.Logger.LogInformation($"Получаю страницу {i}/{pages}");
 
             var appendSegment = url.AppendQueryParameter("page", i);
             var page = await Config.Client.GetHtmlDocWithTriesAsync(appendSegment);
             var content = page.QuerySelector("div.blog-text").RemoveNodes("a[href*=snoska], div[id*=snoska]");
             var nodes = content.ChildNodes;
-            if (i == 1 && !IsHeaderStart(nodes)) {
-                chapter = CreateChapter(title);
-            }
+            if (i == 1 && !IsHeaderStart(nodes)) chapter = CreateChapter(title);
 
-            foreach (var node in nodes) {
-                if (node.Name != "h3" || (node.Name == "h3" && node.GetText() == "***")) {
-                    if (node.Name == "br") {
-                        if (firstBr) {
+            foreach (var node in nodes)
+                if (node.Name != "h3" || (node.Name == "h3" && node.GetText() == "***"))
+                {
+                    if (node.Name == "br")
+                    {
+                        if (firstBr)
+                        {
                             firstBr = false;
                             text.Append("<p>");
-                        } else {
+                        }
+                        else
+                        {
                             text.Append("</p><p>");
                         }
-                        
+
                         continue;
                     }
-                    
-                    if (node.Name == "img" && node.Attributes["src"] != null) {
-                        text.Append($"<img src='{node.Attributes["src"].Value}'/>");
-                    } else if (!string.IsNullOrWhiteSpace(node.InnerHtml)) {
-                        var pText = Decode(node.InnerHtml.HtmlDecode());
-                        
-                        if (node.InnerHtml.StartsWith(" ")) {
-                            pText = " " + pText;
-                        }
 
-                        if (node.InnerHtml.EndsWith(" ")) {
-                            pText += " ";
-                        }
-                        
+                    if (node.Name == "img" && node.Attributes["src"] != null)
+                    {
+                        text.Append($"<img src='{node.Attributes["src"].Value}'/>");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(node.InnerHtml))
+                    {
+                        var pText = Decode(node.InnerHtml.HtmlDecode());
+
+                        if (node.InnerHtml.StartsWith(" ")) pText = " " + pText;
+
+                        if (node.InnerHtml.EndsWith(" ")) pText += " ";
+
                         text.Append(pText.CoverTag(node.Name == "#text" ? string.Empty : node.Name));
                     }
-                } else {
+                }
+                else
+                {
                     text.Append("</p>");
                     await AddChapter(result, chapter, text, url);
                     text.Clear();
                     chapter = CreateChapter(Decode(node.InnerText.HtmlDecode()));
                 }
-            }
         }
-        
+
         text.Append("</p>");
         await AddChapter(result, chapter ?? CreateChapter(title), text, url);
         return result;
     }
 
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri url) {
-        var imagePath = doc.QuerySelector("div[itemprop=aggregateRating] img[itemprop=image]")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(url.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri url)
+    {
+        var imagePath = doc.QuerySelector("div[itemprop=aggregateRating] img[itemprop=image]")?.Attributes["src"]
+            ?.Value;
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(url.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 }

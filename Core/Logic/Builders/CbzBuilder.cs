@@ -14,20 +14,14 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
 
     protected override async Task BuildInternal(Book book, string fileName)
     {
-        if (File.Exists(fileName))
-        {
-            File.Delete(fileName);
-        }
+        if (File.Exists(fileName)) File.Delete(fileName);
 
         using var archive = ZipFile.Open(fileName, ZipArchiveMode.Create);
 
         var c = 0;
         foreach (var chapter in book.Chapters)
         {
-            if (chapter.Images == default)
-            {
-                continue;
-            }
+            if (chapter.Images is null) continue;
 
             foreach (var image in chapter.Images)
             {
@@ -42,8 +36,7 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
 
     protected override async Task SplitBuild(Book book, string fileName)
     {
-        if (options.SplitVolumes && options.SplitChapters)
-        {
+        if (Options.SplitVolumes && Options.SplitChapters)
             foreach (var volumeNumber in book.Volumes)
             {
                 var volume_name = $"{fileName}.v{volumeNumber}.{Extension}";
@@ -51,10 +44,7 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
 
                 foreach (var chapter in book.Chapters.Where(c => c.VolumeNumber == volumeNumber))
                 {
-                    if (chapter.Images == default)
-                    {
-                        continue;
-                    }
+                    if (chapter.Images is null) continue;
 
                     var chapter_name = $"{fileName}.v{chapter.VolumeNumber}.c{chapter.ChapterNumber}.{Extension}";
 
@@ -73,15 +63,15 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
                         await volume_fileStream.CopyToAsync(volume_entryStream);
                         await chapter_fileStream.CopyToAsync(chapter_entryStream);
                     }
+
                     Logger.LogInformation($"Книга {chapter_name} успешно сохранена");
                     chapter_archive.Dispose();
                 }
+
                 Logger.LogInformation($"Книга {volume_name} успешно сохранена");
                 volume_archive.Dispose();
             }
-        }
-        else if (options.SplitVolumes)
-        {
+        else if (Options.SplitVolumes)
             foreach (var volumeNumber in book.Volumes)
             {
                 var volume_name = $"{fileName}.v{volumeNumber}.{Extension}";
@@ -91,10 +81,7 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
                 var c = 0;
                 foreach (var chapter in book.Chapters.Where(c => c.VolumeNumber == volumeNumber))
                 {
-                    if (chapter.Images == default)
-                    {
-                        continue;
-                    }
+                    if (chapter.Images is null) continue;
                     foreach (var image in chapter.Images)
                     {
                         var image_name = $"{chapter.VolumeNumber}-{chapter.ChapterNumber}-{++c}{image.Extension}";
@@ -104,21 +91,17 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
                         await fileStream.CopyToAsync(volume_entryStream);
                     }
                 }
+
                 Logger.LogInformation($"Книга {volume_name} успешно сохранена");
                 volume_archive.Dispose();
             }
-        }
-        else if (options.SplitChapters)
-        {
+        else if (Options.SplitChapters)
             foreach (var chapter in book.Chapters)
             {
                 var chapter_name = $"{fileName}.v{chapter.VolumeNumber}.c{chapter.ChapterNumber}.{Extension}";
 
                 using var chapter_archive = ZipFile.Open(chapter_name, ZipArchiveMode.Create);
-                if (chapter.Images == default)
-                {
-                    continue;
-                }
+                if (chapter.Images is null) continue;
                 var c = 0;
                 foreach (var image in chapter.Images)
                 {
@@ -128,13 +111,11 @@ public class CbzBuilder(Options options, ILogger logger) : BuilderBase(options, 
                     await using var fileStream = image.GetStream();
                     await fileStream.CopyToAsync(chapter_entryStream);
                 }
+
                 Logger.LogInformation($"Книга {chapter_name} успешно сохранена");
                 chapter_archive.Dispose();
             }
-        }
         else
-        {
             await BuildInternal(book, fileName);
-        }
     }
 }

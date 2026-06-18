@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Core.Configs;
+using Core.Exceptions;
 using Core.Extensions;
 using Core.Types.Book;
 using Core.Types.Common;
@@ -20,11 +21,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Core.Logic.Getters;
 
-public class DarkNovelsGetter : GetterBase {
-    private static readonly Dictionary<int, char> _map = new();
+public class DarkNovelsGetter : GetterBase
+{
     private const string ALPHABET = "аАбБвВгГдДеЕёЁжЖзЗиИйЙкКлЛмМнНоОпПрРсСтТуУфФхХцЦчЧшШщЩъЪыЫьЬэЭюЮяЯ";
+    private static readonly Dictionary<int, char> _map = new();
 
-    public DarkNovelsGetter(BookGetterConfig config) : base(config) {
+    public DarkNovelsGetter(BookGetterConfig config) : base(config)
+    {
         InitMap();
     }
 
@@ -32,45 +35,50 @@ public class DarkNovelsGetter : GetterBase {
 
     private Uri _apiUrl => new($"https://api.{SystemUrl.Host}/");
 
-    public override Task Init() {
+    public override Task Init()
+    {
         Config.Client.DefaultRequestVersion = HttpVersion.Version20;
         Config.Client.DefaultRequestHeaders.Add("User-Agent", "novels 1.0.3");
         return Task.CompletedTask;
     }
 
-    public override async Task Authorize() {
-        if (!Config.HasCredentials) {
-            return;
-        }
+    public override async Task Authorize()
+    {
+        if (!Config.HasCredentials) return;
 
-        var payload = new {
+        var payload = new
+        {
             email = Config.Options.Login,
             password = Config.Options.Password
         };
 
         var response = await Config.Client.PostAsJsonAsync(_apiUrl.MakeRelativeUri("/v1/users/login"), payload);
         var data = await response.Content.ReadFromJsonAsync<DarkNovelsData<DarkNovelsAuthResponse>>();
-        if (data!.Status == "success") {
+        if (data!.Status == "success")
+        {
             Config.Client.DefaultRequestHeaders.Add("Token", data.Data.Token.AccessToken);
             Config.Logger.LogInformation("Успешно авторизовались");
-        } else {
-            throw new Exception($"Не удалось авторизоваться. {data.Message}");
+        }
+        else
+        {
+            throw new Elib2EbookAuthException($"Не удалось авторизоваться. {data.Message}");
         }
     }
 
-    private static void InitMap() {
+    private static void InitMap()
+    {
         var start = 13338;
         const int shift = 38;
-        foreach (var c in ALPHABET) {
-            for (var i = start; i < start + shift; i++) {
-                _map[i] = c;
-            }
+        foreach (var c in ALPHABET)
+        {
+            for (var i = start; i < start + shift; i++) _map[i] = c;
 
             start += shift;
         }
     }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         url = await GetMainUrl(url);
 
         var bookFullId = GetId(url);
@@ -79,7 +87,8 @@ public class DarkNovelsGetter : GetterBase {
         var uri = SystemUrl.MakeRelativeUri($"/{bookFullId}/");
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(uri);
 
-        var book = new Book(uri) {
+        var book = new Book(uri)
+        {
             Cover = await GetCover(doc, uri),
             Chapters = await FillChapters(bookId),
             Title = doc.GetTextBySelector("h2.display-1"),
@@ -90,13 +99,16 @@ public class DarkNovelsGetter : GetterBase {
         return book;
     }
 
-    private static Author GetAuthor(HtmlDocument doc) {
+    private static Author GetAuthor(HtmlDocument doc)
+    {
         var match = Regex.Match(doc.ParsedText, "authors:\"(?<author>.*?)\"");
         return new Author(match.Success ? match.Groups["author"].Value : "DarkNovels");
     }
 
-    private async Task<Uri> GetMainUrl(Uri url) {
-        if (url.GetSegment(1) == "read") {
+    private async Task<Uri> GetMainUrl(Uri url)
+    {
+        if (url.GetSegment(1) == "read")
+        {
             var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
             var id = Regex.Match(doc.DocumentNode.InnerHtml, "slug:\"(?<id>.*?)\"");
             return SystemUrl.MakeRelativeUri($"/{id.Groups["id"].Value}");
@@ -105,16 +117,17 @@ public class DarkNovelsGetter : GetterBase {
         return url;
     }
 
-    private async Task<IEnumerable<Chapter>> FillChapters(string bookId) {
+    private async Task<IEnumerable<Chapter>> FillChapters(string bookId)
+    {
         var result = new List<Chapter>();
-        if (Config.Options.NoChapters) {
-            return result;
-        }
+        if (Config.Options.NoChapters) return result;
 
-        foreach (var darkNovelsChapter in await GetToc(bookId)) {
+        foreach (var darkNovelsChapter in await GetToc(bookId))
+        {
             Config.Logger.LogInformation($"Загружаю главу {darkNovelsChapter.Title.CoverQuotes()}");
 
-            var chapter = new Chapter {
+            var chapter = new Chapter
+            {
                 Title = darkNovelsChapter.Title
             };
 
@@ -126,46 +139,52 @@ public class DarkNovelsGetter : GetterBase {
         return result;
     }
 
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri bookUri) {
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri bookUri)
+    {
         var imagePath = doc.QuerySelector("div.book-cover-container img")?.Attributes["data-src"]?.Value;
-        if (string.IsNullOrWhiteSpace(imagePath)) {
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
             var match = new Regex("\"image\": \"(?<url>.*?)\"").Match(doc.Text);
-            if (match.Success) {
-                imagePath = match.Groups["url"].Value;
-            }
+            if (match.Success) imagePath = match.Groups["url"].Value;
         }
 
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(bookUri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(bookUri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 
-    private async Task<IEnumerable<DarkNovelsChapter>> GetToc(string bookId) {
-        return await Config.Client.GetFromJsonAsync<DarkNovelsData<DarkNovelsChapter[]>>(_apiUrl.MakeRelativeUri($"/v2/toc/{bookId}"))
-            .ContinueWith(t => SliceToc(t.Result?.Data.Where(c => !c.Title.StartsWith("Volume:")).ToList(), c => c.Title));
+    private async Task<IEnumerable<DarkNovelsChapter>> GetToc(string bookId)
+    {
+        return await Config.Client
+            .GetFromJsonAsync<DarkNovelsData<DarkNovelsChapter[]>>(_apiUrl.MakeRelativeUri($"/v2/toc/{bookId}"))
+            .ContinueWith(t =>
+                SliceToc(t.Result?.Data.Where(c => !c.Title.StartsWith("Volume:")).ToList(), c => c.Title));
     }
 
-    private async Task FillChapter(string bookId, DarkNovelsChapter darkNovelsChapter, Chapter chapter) {
-        var data = await Config.Client.PostWithTriesAsync(_apiUrl.MakeRelativeUri("/v2/chapter/"), GetData(bookId, darkNovelsChapter.Id, "html"), TimeSpan.FromMilliseconds(200));
-        if (data.StatusCode == HttpStatusCode.BadRequest) {
-            return;
-        }
-        
+    private async Task FillChapter(string bookId, DarkNovelsChapter darkNovelsChapter, Chapter chapter)
+    {
+        var data = await Config.Client.PostWithTriesAsync(_apiUrl.MakeRelativeUri("/v2/chapter/"),
+            GetData(bookId, darkNovelsChapter.Id, "html"), TimeSpan.FromMilliseconds(200));
+        if (data.StatusCode == HttpStatusCode.BadRequest) return;
+
         using var zip = new ZipArchive(await data.Content.ReadAsStreamAsync());
         var sb = new StringBuilder();
 
-        foreach (var entry in zip.Entries) {
+        foreach (var entry in zip.Entries)
+        {
             using var sr = new StreamReader(entry.Open());
-            foreach (var c in await sr.ReadToEndAsync()) {
-                sb.Append(_map.GetValueOrDefault(c, c));
-            }
+            foreach (var c in await sr.ReadToEndAsync()) sb.Append(_map.GetValueOrDefault(c, c));
         }
-        
+
         var chapterDoc = sb.AsHtmlDoc().RemoveNodes("h1");
         chapter.Images = await GetImages(chapterDoc, SystemUrl);
         chapter.Content = chapterDoc.DocumentNode.InnerHtml;
     }
 
-    private static MultipartFormDataContent GetData(string bookId, int chapterId, string format) {
-        return new MultipartFormDataContent {
+    private static MultipartFormDataContent GetData(string bookId, int chapterId, string format)
+    {
+        return new MultipartFormDataContent
+        {
             { new StringContent(bookId), "b" },
             { new StringContent(format), "f" },
             { new StringContent("l"), "t" },

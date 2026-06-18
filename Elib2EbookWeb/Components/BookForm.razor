@@ -11,23 +11,25 @@
         <MudStack>
             <MudToggleGroup T="string" SelectionMode="SelectionMode.MultiSelection" Color="Color.Tertiary" CheckMark @bind-Values="_options.Format">
                 <MudToggleItem Value="@("epub")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox"/>
-                <MudToggleItem Value="@("fb2")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox" />
-                <MudToggleItem Value="@("cbz")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox" />
-                <MudToggleItem Value="@("txt")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox" />
+                <MudToggleItem Value="@("fb2")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox"/>
+                <MudToggleItem Value="@("cbz")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox"/>
+                <MudToggleItem Value="@("txt")" UnselectedIcon="@Icons.Material.Filled.CheckBoxOutlineBlank" SelectedIcon="@Icons.Material.Filled.CheckBox"/>
             </MudToggleGroup>
         </MudStack>
-        
 
         <MudTextField @bind-Value="@_options.Login" Label="Логин" Variant="Variant.Outlined"/>
-        <MudTextField @bind-Value="@_options.Password" Label="Пароль"  Variant="Variant.Outlined" InputType="@_passwordInput" Adornment="Adornment.End" AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="ShowPassword" AdornmentAriaLabel="Показать пароль" />
-        
-        
-        @if (_startEndCSwitcher) {
+        <MudTextField @bind-Value="@_options.Password" Label="Пароль" Variant="Variant.Outlined" InputType="@_passwordInput" Adornment="Adornment.End" AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="ShowPassword" AdornmentAriaLabel="Показать пароль"/>
+        <MudTextField T="string" @bind-Value="_customOptionsText" Label="Дополнительные параметры (Ключ=Значение, каждый с новой строки)" Variant="Variant.Outlined" Lines="3"/>
+
+        @if (_startEndCSwitcher)
+        {
             <div class="d-flex gap-x-4">
                 <MudTextField T="string" Label="Глава от" Variant="Variant.Outlined" @bind-Value="@_options.StartName"/>
                 <MudTextField T="string" Label="Глава до" Variant="Variant.Outlined" @bind-Value="@_options.EndName"/>
             </div>
-        } else {
+        }
+        else
+        {
             <div HtmlTag="div" Class="d-flex gap-x-4">
                 <MudTextField T="int?" Label="Глава от" Variant="Variant.Outlined" @bind-Value="@_options.Start"/>
                 <MudTextField T="int?" Label="Глава до" Variant="Variant.Outlined" @bind-Value="@_options.End"/>
@@ -42,17 +44,24 @@
 </MudPaper>
 
 <MudPaper Class="pa-4 mt-4">
-    @if (_onGenerate) {
+    @if (_onGenerate)
+    {
         <MudButton Variant="Variant.Filled" Color="Color.Info" DropShadow="false" Disabled="true" FullWidth="true" Size="Size.Large">
-            @if (_onGenerate) {
-                @if (!string.IsNullOrWhiteSpace(_log)) {
+            @if (_onGenerate)
+            {
+                @if (!string.IsNullOrWhiteSpace(_log))
+                {
                     <MudText Class="text-truncate">@_log</MudText>
-                } else {
+                }
+                else
+                {
                     <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
                 }
             }
         </MudButton>
-    } else {
+    }
+    else
+    {
         <MudButtonGroup Color="Color.Info" Variant="Variant.Filled" Size="Size.Large" FullWidth="true">
             <MudButton OnClick="WithImages" Disabled="_onGenerate" FullWidth="true">
                 <MudText>Скачать</MudText>
@@ -66,68 +75,86 @@
 
 @code {
     private readonly Options _options = new();
+    private string _customOptionsText = string.Empty;
     private ActionLogger? _logger;
     private bool _onGenerate;
     private string? _log;
     private bool _startEndCSwitcher;
-    
+
     private bool _isShow;
     private InputType _passwordInput = InputType.Password;
     private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
 
-    [Parameter]
-    public required Func<Options, ILogger, Task> OnClick { get; set; }
+    [Parameter] public required Func<Options, ILogger, Task> OnClick { get; set; }
 
-    void ShowPassword() {
-        if (_isShow) {
+    void ShowPassword()
+    {
+        if (_isShow)
+        {
             _isShow = false;
             _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
             _passwordInput = InputType.Password;
-        } else {
+        }
+        else
+        {
             _isShow = true;
             _passwordInputIcon = Icons.Material.Filled.Visibility;
             _passwordInput = InputType.Text;
         }
     }
 
-    private async Task WithImages() {
+    private async Task WithImages()
+    {
         _options.NoImage = false;
         await Download();
     }
-    
-    private async Task NoImages() {
+
+    private async Task NoImages()
+    {
         _options.NoImage = true;
         await Download();
     }
 
-    private async Task Download() {
-        if (_options.Url == null || !_options.Url.Any() || string.IsNullOrWhiteSpace(_options.Url.First())) {
+    private async Task Download()
+    {
+        if (_options.Url == null || !_options.Url.Any() || string.IsNullOrWhiteSpace(_options.Url.First()))
+        {
             Snackbar.Add("Укажите ссылку на книгу", Severity.Error);
             return;
         }
-        
-        if (_options.Format == null || !_options.Format.Any()) {
+
+        if (_options.Format == null || !_options.Format.Any())
+        {
             Snackbar.Add("Выберите формат", Severity.Error);
             return;
         }
-        
+
+        _options.CustomOptions = string.IsNullOrWhiteSpace(_customOptionsText)
+            ? Array.Empty<string>()
+            : _customOptionsText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToList();
+
         _onGenerate = true;
-        _logger = new ActionLogger(str => {
+        _logger = new ActionLogger(str =>
+        {
             _log = str.Crop(300);
             InvokeAsync(StateHasChanged);
         });
-        
+
         await OnClick(_options, _logger);
         _onGenerate = false;
     }
 
-    private void OnSwitch(bool obj) {
+    private void OnSwitch(bool obj)
+    {
         _startEndCSwitcher = obj;
-        
+
         _options.Start = default;
         _options.End = default;
         _options.StartName = default;
         _options.EndName = default;
     }
-    
+
 }

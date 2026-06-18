@@ -1,36 +1,37 @@
 using System.Collections.Generic;
 using Core.Types.Common;
 
-namespace Core.Types.Book; 
+namespace Core.Types.Book;
 
-public class Chapter {
+public class Chapter
+{
     /// <summary>
-    /// Название части
+    ///     Название части
     /// </summary>
     public string Title { get; set; }
-        
+
     /// <summary>
-    /// Контент части
+    ///     Контент части
     /// </summary>
     public string Content { get; set; }
 
     /// <summary>
-    /// Номер тома
+    ///     Номер тома
     /// </summary>
     public string VolumeNumber { get; set; }
 
     /// <summary>
-    /// Номер главы
+    ///     Номер главы
     /// </summary>
     public string ChapterNumber { get; set; }
 
     /// <summary>
-    /// Изображения из части
+    ///     Изображения из части
     /// </summary>
     public IEnumerable<TempFile> Images { get; set; } = new List<TempFile>();
 
     /// <summary>
-    /// Валидна ли часть
+    ///     Валидна ли часть
     /// </summary>
     public bool IsValid => !string.IsNullOrWhiteSpace(Content);
 }

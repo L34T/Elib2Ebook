@@ -13,90 +13,100 @@ using Microsoft.Extensions.Logging;
 
 namespace Core.Logic.Getters;
 
-public class BoostyGetter(BookGetterConfig config) : GetterBase(config) {
+public class BoostyGetter(BookGetterConfig config) : GetterBase(config)
+{
     protected override Uri SystemUrl => new("https://boosty.to/");
 
     private static Uri ApiUrl => new(" https://api.boosty.to/");
 
-    protected override string GetId(Uri url) {
+    protected override string GetId(Uri url)
+    {
         return url.GetSegment(1);
     }
 
-    public override async Task<Book> Get(Uri url) {
+    public override async Task<Book> Get(Uri url)
+    {
         var bookId = GetId(url);
         url = SystemUrl.MakeRelativeUri($"/{bookId}");
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
 
-        var book = new Book(url) {
+        var book = new Book(url)
+        {
             Cover = await GetCover(doc, url),
             Chapters = await FillChapters(url, bookId),
             Title = "Exclusive content on Boosty",
             Author = GetAuthor(doc, url),
-            Annotation = doc.QuerySelector("div.AboutAuthor_content_HprOc")?.InnerHtml,
+            Annotation = doc.QuerySelector("div.AboutAuthor_content_HprOc")?.InnerHtml
         };
-            
+
         return book;
     }
 
-    private static Author GetAuthor(HtmlDocument doc, Uri url) {
+    private static Author GetAuthor(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("h1");
         return new Author(a.GetText(), url);
     }
 
-    private async Task<IEnumerable<Chapter>> FillChapters(Uri uri, string bookId) {
+    private async Task<IEnumerable<Chapter>> FillChapters(Uri uri, string bookId)
+    {
         var result = new List<Chapter>();
-        
-        foreach (var post in await GetToc(bookId)) {
+
+        foreach (var post in await GetToc(bookId))
+        {
             Config.Logger.LogInformation($"Загружаю главу {post.Title.CoverQuotes()}");
-            var chapter = new Chapter {
+            var chapter = new Chapter
+            {
                 Title = post.Title
             };
-            
+
             var doc = await GetChapter(post, bookId);
-            if (doc != default) {
+            if (doc is not null)
+            {
                 chapter.Images = await GetImages(doc, uri);
                 chapter.Content = doc.DocumentNode.InnerHtml;
             }
-            
+
             result.Add(chapter);
         }
 
         return result;
     }
 
-    private async Task<HtmlDocument> GetChapter(BoostyPost post, string bookId) {
-        if (!post.HasAccess) {
-            return default;
-        }
-        
+    private async Task<HtmlDocument> GetChapter(BoostyPost post, string bookId)
+    {
+        if (!post.HasAccess) return default;
+
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(SystemUrl.MakeRelativeUri($"/{bookId}/posts/{post.Id}"));
         doc = doc.QuerySelector("article.Post_content_ETkyT").InnerHtml.AsHtmlDoc().RemoveNodes("h1");
-        
-        foreach (var img in doc.QuerySelectorAll("img")) {
-            if (img.ParentNode.Name == "a") {
+
+        foreach (var img in doc.QuerySelectorAll("img"))
+            if (img.ParentNode.Name == "a")
+            {
                 img.ParentNode.Name = "div";
                 img.ParentNode.Attributes.RemoveAll();
             }
-        }
 
-        foreach (var div in doc.QuerySelectorAll("div.BlockRenderer_markup_Wtipg")) {
-            if (string.IsNullOrWhiteSpace(div.InnerHtml)) {
+        foreach (var div in doc.QuerySelectorAll("div.BlockRenderer_markup_Wtipg"))
+            if (string.IsNullOrWhiteSpace(div.InnerHtml))
                 div.InnerHtml = "<br />";
-            }
-        }
-        
+
         return doc;
     }
 
-    private async Task<IEnumerable<BoostyPost>> GetToc(string bookId) {
+    private async Task<IEnumerable<BoostyPost>> GetToc(string bookId)
+    {
         var result = new List<BoostyPost>();
-        
-        var response = await Config.Client.GetWithTriesAsync(ApiUrl.MakeRelativeUri($"/v1/blog/{bookId}/post/").AppendQueryParameter("limit", 10));
+
+        var response = await Config.Client.GetWithTriesAsync(ApiUrl.MakeRelativeUri($"/v1/blog/{bookId}/post/")
+            .AppendQueryParameter("limit", 10));
         var content = await response.Content.ReadFromJsonAsync<BoostyApiResponse<BoostyPost[]>>();
         result.AddRange(content.Data);
 
-        while (!content.Extra.IsLast) {
-            response = await Config.Client.GetWithTriesAsync(ApiUrl.MakeRelativeUri($"/v1/blog/{bookId}/post/").AppendQueryParameter("limit", 10).AppendQueryParameter("offset", content.Extra.Offset));
+        while (!content.Extra.IsLast)
+        {
+            response = await Config.Client.GetWithTriesAsync(ApiUrl.MakeRelativeUri($"/v1/blog/{bookId}/post/")
+                .AppendQueryParameter("limit", 10).AppendQueryParameter("offset", content.Extra.Offset));
             content = await response.Content.ReadFromJsonAsync<BoostyApiResponse<BoostyPost[]>>();
             result.AddRange(content.Data);
         }
@@ -105,8 +115,11 @@ public class BoostyGetter(BookGetterConfig config) : GetterBase(config) {
         return SliceToc(result, c => c.Title);
     }
 
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
         var imagePath = doc.QuerySelector("link[rel=image_src]")?.Attributes["href"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 }

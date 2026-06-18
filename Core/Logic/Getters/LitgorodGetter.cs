@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 using Core.Configs;
+using Core.Exceptions;
 using Core.Extensions;
 using Core.Types.Book;
 using Core.Types.Common;
@@ -14,17 +15,20 @@ using HtmlAgilityPack;
 using HtmlAgilityPack.CssSelectors.NetCore;
 using Microsoft.Extensions.Logging;
 
-namespace Core.Logic.Getters; 
+namespace Core.Logic.Getters;
 
-public class LitgorodGetter(BookGetterConfig config) : GetterBase(config) {
+public class LitgorodGetter(BookGetterConfig config) : GetterBase(config)
+{
     protected override Uri SystemUrl => new("https://litgorod.ru/");
-    
-    public override async Task<Book> Get(Uri url) {
+
+    public override async Task<Book> Get(Uri url)
+    {
         url = SystemUrl.MakeRelativeUri($"/books/view/{GetId(url)}");
         Config.Client.DefaultRequestHeaders.Add("Referer", url.ToString());
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(url);
 
-        var book = new Book(url) {
+        var book = new Book(url)
+        {
             Cover = await GetCover(doc, url),
             Chapters = await FillChapters(doc, url),
             Title = doc.GetTextBySelector("div.b-book_item__name h1"),
@@ -33,132 +37,137 @@ public class LitgorodGetter(BookGetterConfig config) : GetterBase(config) {
             Annotation = doc.QuerySelector("div[data-tab-item=1] > p")?.InnerHtml,
             Seria = GetSeria(doc, url)
         };
-            
+
         return book;
     }
 
-    public override async Task Init() {
+    public override async Task Init()
+    {
         var response = await Config.Client.GetWithTriesAsync(SystemUrl);
         var doc = await response.Content.ReadAsStringAsync().ContinueWith(t => t.Result.AsHtmlDoc());
-        
+
         var csrf = doc.QuerySelector("[name=csrf-token]")?.Attributes["content"]?.Value;
-        if (string.IsNullOrWhiteSpace(csrf)) {
+        if (string.IsNullOrWhiteSpace(csrf))
             throw new ArgumentException("Не удалось получить csrf-token", nameof(csrf));
-        }
-            
+
         var cookies = response.Headers.SingleOrDefault(header => header.Key == "Set-Cookie").Value;
         var xsrfCookie = cookies.FirstOrDefault(c => c.StartsWith("XSRF-TOKEN="));
-        if (xsrfCookie == null) {
-            throw new ArgumentException("Не удалось получить XSRF-TOKEN", nameof(xsrfCookie));
-        }
-            
+        if (xsrfCookie == null) throw new ArgumentException("Не удалось получить XSRF-TOKEN", nameof(xsrfCookie));
+
         var xsrf = HttpUtility.UrlDecode(xsrfCookie.Split(";")[0].Replace("XSRF-TOKEN=", ""));
-        
+
         Config.Client.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
         Config.Client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
         Config.Client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", csrf);
         Config.Client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", xsrf);
     }
 
-    public override async Task Authorize() {
-        if (!Config.HasCredentials) {
-            return;
-        }
+    public override async Task Authorize()
+    {
+        if (!Config.HasCredentials) return;
 
-        var payload = new {
+        var payload = new
+        {
             email = Config.Options.Login,
             password = Config.Options.Password
         };
 
         var response = await Config.Client.PostAsJsonAsync(SystemUrl.MakeRelativeUri("login"), payload);
         var data = await response.Content.ReadFromJsonAsync<LitgorodAuthResponse>();
-        if (string.IsNullOrWhiteSpace(data?.Message)) {
+        if (string.IsNullOrWhiteSpace(data?.Message))
             Config.Logger.LogInformation("Успешно авторизовались");
-        } else {
-            throw new Exception($"Не удалось авторизоваться. {data.Message}");
-        }
+        else
+            throw new Elib2EbookAuthException($"Не удалось авторизоваться. {data.Message}");
     }
 
-    private static Author GetAuthor(HtmlDocument doc, Uri url) {
+    private static Author GetAuthor(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("div.b-book_item__author a");
         return new Author(a.GetText(), url.MakeRelativeUri(a.Attributes["href"].Value));
     }
-    
-    private static IEnumerable<Author> GetCoAuthors(HtmlDocument doc, Uri url) {
-        return doc.QuerySelectorAll("div.b-book_item__author a").Skip(1).Select(a => new Author(a.GetText(), url.MakeRelativeUri(a.Attributes["href"].Value))).ToList();
+
+    private static IEnumerable<Author> GetCoAuthors(HtmlDocument doc, Uri url)
+    {
+        return doc.QuerySelectorAll("div.b-book_item__author a").Skip(1)
+            .Select(a => new Author(a.GetText(), url.MakeRelativeUri(a.Attributes["href"].Value))).ToList();
     }
 
-    private static Seria GetSeria(HtmlDocument doc, Uri url) {
+    private static Seria GetSeria(HtmlDocument doc, Uri url)
+    {
         var a = doc.QuerySelector("div.b-book_item__cycle a");
-        if (a != default) {
-            return new Seria {
+        if (a is not null)
+            return new Seria
+            {
                 Name = a.GetText(),
                 Url = url.MakeRelativeUri(a.Attributes["href"].Value)
             };
-        }
 
         return default;
     }
-    
-    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri uri) {
-        var result = new List<Chapter>();
-        if (Config.Options.NoChapters) {
-            return result;
-        }
 
-        foreach (var bookChapter in GetToc(doc, uri)) {
-            var chapter = new Chapter {
+    private async Task<IEnumerable<Chapter>> FillChapters(HtmlDocument doc, Uri uri)
+    {
+        var result = new List<Chapter>();
+        if (Config.Options.NoChapters) return result;
+
+        foreach (var bookChapter in GetToc(doc, uri))
+        {
+            var chapter = new Chapter
+            {
                 Title = bookChapter.Title
             };
 
             Config.Logger.LogInformation($"Загружаю главу {bookChapter.Title.CoverQuotes()}");
             var chapterDoc = await GetChapter(bookChapter.Url);
 
-            if (chapterDoc != default) {
+            if (chapterDoc is not null)
+            {
                 chapter.Images = await GetImages(chapterDoc, uri);
                 chapter.Content = chapterDoc.DocumentNode.InnerHtml;
             }
-            
+
             result.Add(chapter);
         }
 
         return result;
     }
-    
-    private async Task<HtmlDocument> GetChapter(Uri url) {
+
+    private async Task<HtmlDocument> GetChapter(Uri url)
+    {
         var response = await Config.Client.GetWithTriesAsync(url);
-        if (response == default) {
-            return default;
-        }
+        if (response is null) return default;
 
         var doc = await response.Content.ReadAsStreamAsync().ContinueWith(t => t.Result.AsHtmlDoc());
 
         var content = doc.QuerySelector("book-reader");
-        if (content == default) {
-            return default;
-        }
+        if (content is null) return default;
 
         var sb = new StringBuilder();
 
         var chapterContent = doc.QuerySelector("book-reader").Attributes[":current_chapter"].Value;
-        foreach (var paragraph in HttpUtility.HtmlDecode(chapterContent).Deserialize<LitgorodChapter>().Paragraphs) {
+        foreach (var paragraph in HttpUtility.HtmlDecode(chapterContent).Deserialize<LitgorodChapter>().Paragraphs)
             sb.Append(paragraph.HtmlDecode());
-        }
 
         return sb.AsHtmlDoc();
     }
 
-    private IEnumerable<UrlChapter> GetToc(HtmlDocument doc, Uri url) {
+    private IEnumerable<UrlChapter> GetToc(HtmlDocument doc, Uri url)
+    {
         var result = doc
             .QuerySelectorAll("div.b-tab__content ul.list-unstyled a")
-            .Select(a => new UrlChapter(url.MakeRelativeUri(a.Attributes["href"].Value), string.IsNullOrWhiteSpace(a.GetText()) ? "Без названия" : a.GetText()))
+            .Select(a => new UrlChapter(url.MakeRelativeUri(a.Attributes["href"].Value),
+                string.IsNullOrWhiteSpace(a.GetText()) ? "Без названия" : a.GetText()))
             .ToList();
-        
+
         return SliceToc(result, c => c.Title);
     }
 
-    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri) {
-        var imagePath = doc.QuerySelector("div.b-book_cover a[href]")?.Attributes["href"]?.Value ?? doc.QuerySelector("div.b-book_cover img")?.Attributes["src"]?.Value;
-        return !string.IsNullOrWhiteSpace(imagePath) ? SaveImage(uri.MakeRelativeUri(imagePath)) : Task.FromResult(default(TempFile));
+    private Task<TempFile> GetCover(HtmlDocument doc, Uri uri)
+    {
+        var imagePath = doc.QuerySelector("div.b-book_cover a[href]")?.Attributes["href"]?.Value ??
+                        doc.QuerySelector("div.b-book_cover img")?.Attributes["src"]?.Value;
+        return !string.IsNullOrWhiteSpace(imagePath)
+            ? SaveImage(uri.MakeRelativeUri(imagePath))
+            : Task.FromResult(default(TempFile));
     }
 }

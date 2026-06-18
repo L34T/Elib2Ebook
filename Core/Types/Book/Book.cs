@@ -1,61 +1,67 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using Core.Types.Common;
 
-namespace Core.Types.Book; 
+namespace Core.Types.Book;
 
-public class Book : IDisposable {
+public class Book : IDisposable
+{
+    public Book(Uri url)
+    {
+        Url = url;
+    }
+
     /// <summary>
-    /// Название книги
+    ///     Название книги
     /// </summary>
     public string Title { get; set; }
-        
+
     /// <summary>
-    /// Автор книги
+    ///     Автор книги
     /// </summary>
     public Author Author { get; set; }
 
     /// <summary>
-    /// Автор книги
+    ///     Автор книги
     /// </summary>
     public IEnumerable<Author> CoAuthors { get; set; } = new List<Author>();
 
     /// <summary>
-    /// Описание книги
+    ///     Описание книги
     /// </summary>
     public string Annotation { get; set; }
-        
+
     /// <summary>
-    /// Обложка
+    ///     Обложка
     /// </summary>
     public TempFile Cover { get; set; }
-    
+
     /// <summary>
-    /// Серия
+    ///     Серия
     /// </summary>
     public Seria Seria { get; set; }
 
     /// <summary>
-    /// Части
+    ///     Части
     /// </summary>
     public IEnumerable<Chapter> Chapters { get; set; } = new List<Chapter>();
 
-/// Тома
+    /// Тома
     public IEnumerable<string> Volumes => Chapters.Select(c => c.VolumeNumber).Distinct();
 
     /// <summary>
-    /// Url расположения книги
+    ///     Url расположения книги
     /// </summary>
     public Uri Url { get; set; }
 
     /// <summary>
-    /// Дополнительные файлы
+    ///     Дополнительные файлы
     /// </summary>
     public AdditionalFileCollection AdditionalFiles { get; set; } = new();
 
     /// <summary>
-    /// Язык книги
+    ///     Язык книги
     /// </summary>
     public string Lang { get; set; } = "ru";
 
@@ -64,11 +70,8 @@ public class Book : IDisposable {
 
     public bool SupportSplitting => SupportSplitVolumes || SupportSplitChapters;
 
-    public Book(Uri url) {
-        Url = url;
-    }
-
-    public void Dispose() {
+    public void Dispose()
+    {
         Cover?.Dispose();
         AdditionalFiles?.Dispose();
     }
