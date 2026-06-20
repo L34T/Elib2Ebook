@@ -64,8 +64,7 @@ public class AcomicsGetter(BookGetterConfig config) : GetterBase(config)
             Title = title
         };
 
-        var pages = int.Parse(doc.GetTextBySelector("span.issueNumber,span.number-without-name,span.number-with-name")
-            .Split("/").Last());
+        var pages = int.Parse(doc.GetTextBySelector("span.issueNumber,span.number-without-name,span.number-with-name").Split("/").Last());
         var sb = new StringBuilder();
         for (var i = 1; i <= pages; i++)
         {
