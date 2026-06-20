@@ -37,9 +37,9 @@ public class LitresPayload
 
     private static string Sha256(string str)
     {
-        var crypt = SHA256.Create();
-        var crypto = crypt.ComputeHash(Encoding.UTF8.GetBytes(str), 0, Encoding.UTF8.GetByteCount(str));
+        var bytes = Encoding.UTF8.GetBytes(str);
+        var crypto = SHA256.HashData(bytes);
 
-        return crypto.Aggregate(new StringBuilder(), (sb, b) => sb.Append(b.ToString("x2"))).ToString();
+        return Convert.ToHexString(crypto).ToLowerInvariant();
     }
 }

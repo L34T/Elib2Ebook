@@ -67,7 +67,11 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
 
     private static string Challenge(string str)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(str).AsSpan(0, Encoding.UTF8.GetByteCount(str)));
+        Span<byte> bytesToHash = stackalloc byte[Encoding.UTF8.GetMaxByteCount(str.Length)];
+        int byteCount = Encoding.UTF8.GetBytes(str, bytesToHash);
+        Span<byte> bytes = stackalloc byte[32];
+        SHA256.HashData(bytesToHash[..byteCount], bytes);
+
         var sb = new StringBuilder(44);
 
         for (var t = 0; t < bytes.Length; t += 3)
@@ -90,9 +94,7 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
 
     private static string GetRandom(int length)
     {
-        return Enumerable
-            .Repeat(0, length)
-            .Aggregate(string.Empty, (c, _) => c + ALPHABET_BASE[RandomNumberGenerator.GetInt32(ALPHABET_BASE.Length)]);
+        return RandomNumberGenerator.GetString(ALPHABET_BASE, length);
     }
 
     public override async Task Authorize()

@@ -20,15 +20,16 @@ public static class HttpClientExtensions
         return errorTimeout == default ? DefaultTimeout : errorTimeout;
     }
 
-    public static async Task<HttpResponseMessage> GetWithTriesAsync(this HttpClient client, Uri url,
-        TimeSpan errorTimeout = default)
+    private static async Task<HttpResponseMessage> SendWithTriesAsync(
+        Func<Task<HttpResponseMessage>> requestFunc,
+        TimeSpan errorTimeout)
     {
         Exception lastEx = null;
 
         for (var i = 0; i < MAX_TRY_COUNT; i++)
             try
             {
-                var response = await client.GetAsync(url);
+                var response = await requestFunc();
 
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
@@ -50,69 +51,24 @@ public static class HttpClientExtensions
         if (lastEx != null) throw lastEx;
 
         return default;
+    }
+
+    public static async Task<HttpResponseMessage> GetWithTriesAsync(this HttpClient client, Uri url,
+        TimeSpan errorTimeout = default)
+    {
+        return await SendWithTriesAsync(() => client.GetAsync(url), errorTimeout);
     }
 
     public static async Task<HttpResponseMessage> SendWithTriesAsync(this HttpClient client,
         Func<HttpRequestMessage> message, TimeSpan errorTimeout = default)
     {
-        Exception lastEx = null;
-
-        for (var i = 0; i < MAX_TRY_COUNT; i++)
-            try
-            {
-                var response = await client.SendAsync(message());
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    if (i == MAX_TRY_COUNT - 1) return response;
-
-                    response.Dispose();
-                    await Task.Delay(GetTimeout(errorTimeout));
-                    continue;
-                }
-
-                return response;
-            }
-            catch (Exception ex)
-            {
-                lastEx = ex;
-                await Task.Delay(GetTimeout(errorTimeout));
-            }
-
-        if (lastEx != null) throw lastEx;
-
-        return default;
+        return await SendWithTriesAsync(() => client.SendAsync(message()), errorTimeout);
     }
 
     public static async Task<HttpResponseMessage> PostWithTriesAsync(this HttpClient client, Uri url,
         HttpContent content, TimeSpan errorTimeout = default)
     {
-        Exception lastEx = null;
-
-        for (var i = 0; i < MAX_TRY_COUNT; i++)
-            try
-            {
-                var response = await client.PostAsync(url, content);
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    await Task.Delay(GetTimeout(errorTimeout));
-                    if (i == MAX_TRY_COUNT - 1) return response;
-
-                    continue;
-                }
-
-                return response;
-            }
-            catch (Exception ex)
-            {
-                lastEx = ex;
-                await Task.Delay(GetTimeout(errorTimeout));
-            }
-
-        if (lastEx != null) throw lastEx;
-
-        return default;
+        return await SendWithTriesAsync(() => client.PostAsync(url, content), errorTimeout);
     }
 
     public static async Task<HtmlDocument> GetHtmlDocWithTriesAsync(this HttpClient client, Uri url,

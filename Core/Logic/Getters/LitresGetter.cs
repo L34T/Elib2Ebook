@@ -109,7 +109,6 @@ public class LitresGetter(BookGetterConfig config) : GetterBase(config)
             {
                 _authData = await File.ReadAllTextAsync(saveCreds)
                     .ContinueWith(t => t.Result.Deserialize<LitresAuthResponseData>());
-                ;
                 Config.Client.DefaultRequestHeaders.Add("Session-Id", _authData.Sid);
 
                 var checkResponse =
