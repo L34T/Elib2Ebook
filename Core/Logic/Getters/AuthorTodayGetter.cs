@@ -23,7 +23,7 @@ namespace Core.Logic.Getters;
 
 public class AuthorTodayGetter(BookGetterConfig config) : GetterBase(config)
 {
-    private const string AT_CERT = "rmy8LDkVZR+pSXopxUte7hFbA6I=";
+    private const string AT_CERT = AppSecrets.AuthorTodayCert;
 
     private bool _bypass;
     private bool _singleFetchUsed;
@@ -77,63 +77,102 @@ public class AuthorTodayGetter(BookGetterConfig config) : GetterBase(config)
     {
         if (!Config.HasCredentials) return;
 
-        // АТ очень не любит много авторизовывать
-        // поэтому пришлось добавить кеширование токенов
         const string directory = "ATCache";
-
         if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
-        var saveCreds = $"{directory}/{Config.Options.Login.RemoveInvalidChars()}";
-        if (File.Exists(saveCreds))
+        var cachePath = $"{directory}/{Config.Options.Login.RemoveInvalidChars()}";
+
+        if (await TryAuthorizeFromCacheAsync(cachePath)) return;
+
+        await AuthorizeByPasswordAsync(cachePath);
+    }
+
+    private async Task<string> GetUserIdAsync()
+    {
+        try
         {
-            var timeDiff = DateTime.Now - File.GetLastWriteTime(saveCreds);
-            if (timeDiff.TotalHours < 24)
+            var response = await Config.Client.SendWithTriesAsync(() =>
+                GetDefaultMessage(ApiUrl.MakeRelativeUri("/v1/account/current-user"), _apiUrl));
+
+            if (response.StatusCode != HttpStatusCode.OK) return null;
+
+            var user = await response.Content.ReadFromJsonAsync<AuthorTodayUser>();
+            return user?.Id.ToString();
+        }
+        catch (Exception ex)
+        {
+            Config.Logger.LogDebug(ex, "AuthorToday: не удалось получить идентификатор пользователя.");
+            return null;
+        }
+    }
+
+    private async Task<bool> TryAuthorizeFromCacheAsync(string cachePath)
+    {
+        if (!File.Exists(cachePath)) return false;
+
+        try
+        {
+            if (DateTime.Now - File.GetLastWriteTime(cachePath) >= TimeSpan.FromHours(24))
             {
-                var savedAuth = await File.ReadAllTextAsync(saveCreds)
-                    .ContinueWith(t => t.Result.Deserialize<AuthorTodayAuthResponse>());
-                Config.Client.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", savedAuth.Token);
-
-                try
-                {
-                    var checkResponse = await Config.Client.SendWithTriesAsync(() =>
-                        GetDefaultMessage(ApiUrl.MakeRelativeUri("/v1/account/current-user"), _apiUrl));
-                    var checkUser = await checkResponse.Content.ReadFromJsonAsync<AuthorTodayUser>();
-                    UserId = checkUser!.Id.ToString();
-                }
-                catch (Exception)
-                {
-                }
-
-                if (!string.IsNullOrWhiteSpace(UserId)) return;
+                File.Delete(cachePath);
+                return false;
             }
-            else
+
+            var json = await File.ReadAllTextAsync(cachePath);
+            var savedAuth = json.Deserialize<AuthorTodayAuthResponse>();
+            if (string.IsNullOrWhiteSpace(savedAuth?.Token)) return false;
+
+            Config.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", savedAuth.Token);
+
+            UserId = await GetUserIdAsync();
+            if (!string.IsNullOrWhiteSpace(UserId))
             {
-                File.Delete(saveCreds);
+                Config.Logger.LogInformation("AuthorToday: успешно авторизовались с помощью кэша");
+                return true;
             }
         }
+        catch (Exception ex)
+        {
+            Config.Logger.LogDebug(ex, "AuthorToday: не удалось авторизоваться через кэш.");
+            try { File.Delete(cachePath); } catch { /* ignore */ }
+        }
 
+        Config.Client.DefaultRequestHeaders.Authorization = null;
+        return false;
+    }
+
+    private async Task AuthorizeByPasswordAsync(string cachePath)
+    {
         var response = await Config.Client.SendAsync(GetDefaultMessage(
             ApiUrl.MakeRelativeUri("/v1/account/login-by-password"), _apiUrl,
             JsonContent.Create(new { Config.Options.Login, Config.Options.Password })));
+
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            var err = await response.Content.ReadFromJsonAsync<AuthorTodayAuthResponse>();
+            throw new Elib2EbookAuthException($"Не удалось авторизоваться. {err?.Message}");
+        }
+
         var data = await response.Content.ReadFromJsonAsync<AuthorTodayAuthResponse>();
+        if (string.IsNullOrWhiteSpace(data?.Token))
+            throw new Elib2EbookAuthException("Сайт не вернул token после успешного запроса авторизации.");
 
-        if (!string.IsNullOrWhiteSpace(data?.Token))
+        Config.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", data.Token);
+
+        UserId = await GetUserIdAsync();
+        if (string.IsNullOrWhiteSpace(UserId))
+            throw new Elib2EbookAuthException("Не удалось получить идентификатор пользователя после авторизации.");
+
+        Config.Logger.LogInformation("Успешно авторизовались");
+
+        try
         {
-            Config.Logger.LogInformation("Успешно авторизовались");
-            Config.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", data.Token);
-
-            response = await Config.Client.SendWithTriesAsync(() =>
-                GetDefaultMessage(ApiUrl.MakeRelativeUri("/v1/account/current-user"), _apiUrl));
-            var user = await response.Content.ReadFromJsonAsync<AuthorTodayUser>();
-            UserId = user!.Id.ToString();
+            await File.WriteAllTextAsync(cachePath, JsonSerializer.Serialize(data));
         }
-        else
+        catch (Exception ex)
         {
-            throw new Elib2EbookAuthException($"Не удалось авторизоваться. {data?.Message}");
+            Config.Logger.LogDebug(ex, "AuthorToday: не удалось записать кэш авторизации.");
         }
-
-        await File.WriteAllTextAsync(saveCreds, JsonSerializer.Serialize(data));
     }
 
     public override async Task<Book> Get(Uri url)

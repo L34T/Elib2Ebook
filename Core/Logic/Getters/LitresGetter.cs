@@ -27,12 +27,12 @@ namespace Core.Logic.Getters;
 
 public class LitresGetter(BookGetterConfig config) : GetterBase(config)
 {
-    private const string SECRET_KEY = "AsAAfdV000-1kksn6591x:[}A{}<><DO#Brn`BnB6E`^s\"ivP:RY'4|v\"h/r^]";
+    private const string SECRET_KEY = AppSecrets.LitresSecretKey;
     private const string APP = "13";
 
     private LitresAuthResponseData _authData = new()
     {
-        Sid = "6ufp4b2wbx1acc4k1f0wdo571762c0fn"
+        Sid = AppSecrets.LitresDefaultSid
     };
 
     private LitresMe _me;
@@ -207,6 +207,7 @@ public class LitresGetter(BookGetterConfig config) : GetterBase(config)
         }
         catch (Exception)
         {
+            Config.Logger.LogWarning("Litres: Не удалось получить метаданные книги из API.");
         }
 
         var book = new Book(SystemUrl.MakeRelativeUri(bookId))

@@ -221,37 +221,10 @@ public class ProdamanGetter : GetterBase
             if (i == 1 && !IsHeaderStart(nodes)) chapter = CreateChapter(title);
 
             foreach (var node in nodes)
+            {
                 if (node.Name != "h3" || (node.Name == "h3" && node.GetText() == "***"))
                 {
-                    if (node.Name == "br")
-                    {
-                        if (firstBr)
-                        {
-                            firstBr = false;
-                            text.Append("<p>");
-                        }
-                        else
-                        {
-                            text.Append("</p><p>");
-                        }
-
-                        continue;
-                    }
-
-                    if (node.Name == "img" && node.Attributes["src"] != null)
-                    {
-                        text.Append($"<img src='{node.Attributes["src"].Value}'/>");
-                    }
-                    else if (!string.IsNullOrWhiteSpace(node.InnerHtml))
-                    {
-                        var pText = Decode(node.InnerHtml.HtmlDecode());
-
-                        if (node.InnerHtml.StartsWith(" ")) pText = " " + pText;
-
-                        if (node.InnerHtml.EndsWith(" ")) pText += " ";
-
-                        text.Append(pText.CoverTag(node.Name == "#text" ? string.Empty : node.Name));
-                    }
+                    ProcessContentNode(text, node, ref firstBr);
                 }
                 else
                 {
@@ -260,11 +233,45 @@ public class ProdamanGetter : GetterBase
                     text.Clear();
                     chapter = CreateChapter(Decode(node.InnerText.HtmlDecode()));
                 }
+            }
         }
 
         text.Append("</p>");
         await AddChapter(result, chapter ?? CreateChapter(title), text, url);
         return result;
+    }
+
+    private void ProcessContentNode(StringBuilder text, HtmlNode node, ref bool firstBr)
+    {
+        if (node.Name == "br")
+        {
+            if (firstBr)
+            {
+                firstBr = false;
+                text.Append("<p>");
+            }
+            else
+            {
+                text.Append("</p><p>");
+            }
+
+            return;
+        }
+
+        if (node.Name == "img" && node.Attributes["src"] != null)
+        {
+            text.Append($"<img src='{node.Attributes["src"].Value}'/>");
+        }
+        else if (!string.IsNullOrWhiteSpace(node.InnerHtml))
+        {
+            var pText = Decode(node.InnerHtml.HtmlDecode());
+
+            if (node.InnerHtml.StartsWith(" ")) pText = " " + pText;
+
+            if (node.InnerHtml.EndsWith(" ")) pText += " ";
+
+            text.Append(pText.CoverTag(node.Name == "#text" ? string.Empty : node.Name));
+        }
     }
 
     private Task<TempFile> GetCover(HtmlDocument doc, Uri url)

@@ -83,12 +83,12 @@ public class BoovelGetter(BookGetterConfig config) : GetterBase(config)
     {
         var doc = await Config.Client.GetHtmlDocWithTriesAsync(urlChapter.Url);
         var encoded = Convert.FromBase64String(doc.QuerySelector("#chapter-content").InnerText);
-        var secret = doc.QuerySelector("body").Attributes["data-post-id"].Value + "skajldayzonePVPkruto0";
+        var secret = doc.QuerySelector("body").Attributes["data-post-id"].Value + AppSecrets.BoovelSalt;
 
         var crypto = SHA256.HashData(Encoding.UTF8.GetBytes(secret).AsSpan(0, Encoding.UTF8.GetByteCount(secret)));
         using var aes = Aes.Create();
 
-        const int IV_SHIFT = 16;
+        const int IV_SHIFT = AppSecrets.AesIvShift;
 
         aes.Key = crypto;
         aes.IV = encoded[..IV_SHIFT];

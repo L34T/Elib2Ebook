@@ -42,11 +42,7 @@ public class StrokiMtsGetter(BookGetterConfig config) : GetterBase(config)
         var id = GetId(url);
 
         var details = await GetBook(id);
-        var detailBook = details?.Items.FirstOrDefault(d => d.TextBook is not null)?.TextBook ??
-                         details?.Items.FirstOrDefault(d => d.AudioBook is not null)?.AudioBook ??
-                         details?.Items.FirstOrDefault(d => d.ComicBook is not null)?.ComicBook ??
-                         details?.Items.FirstOrDefault(d => d.PressBook is not null)?.PressBook ??
-                         await GetSerial(id);
+        var detailBook = await FindDetailBook(details, id);
 
         if (detailBook is null) throw new Elib2EbookParseException("Не удалось получить книгу");
 
@@ -82,6 +78,22 @@ public class StrokiMtsGetter(BookGetterConfig config) : GetterBase(config)
             book.AdditionalFiles.Add(AdditionalTypeEnum.Audio, await GetAudio(details));
 
         return book;
+    }
+
+    private async Task<StrokiMtsBookItem> FindDetailBook(StrokiMtsApiMultiResponse details, string id)
+    {
+        if (details?.Items is not null)
+        {
+            foreach (var item in details.Items)
+            {
+                if (item.TextBook is not null) return item.TextBook;
+                if (item.AudioBook is not null) return item.AudioBook;
+                if (item.ComicBook is not null) return item.ComicBook;
+                if (item.PressBook is not null) return item.PressBook;
+            }
+        }
+
+        return await GetSerial(id);
     }
 
     private static IEnumerable<Chapter> FillChaptersFromImages(StrokiMtsBookItem book, IEnumerable<TempFile> images)

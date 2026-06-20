@@ -20,6 +20,7 @@ public class RemangaGetter(BookGetterConfig config) : RenovelsGetterBase(config)
         var sb = new StringBuilder();
 
         foreach (var obj in response.Pages)
+        {
             switch (obj)
             {
                 case JsonObject:
@@ -31,7 +32,10 @@ public class RemangaGetter(BookGetterConfig config) : RenovelsGetterBase(config)
 
                     break;
                 }
+                default:
+                    break;
             }
+        }
 
         return sb.AsHtmlDoc();
     }

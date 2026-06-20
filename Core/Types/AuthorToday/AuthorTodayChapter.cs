@@ -30,11 +30,11 @@ public class AuthorTodayChapter
     public string Decode(string userId, string cert)
     {
         var secret =
-            $"{string.Concat(Key.Reverse())}:{(string.IsNullOrWhiteSpace(userId) ? "Guest" : userId)}:{"FjPg]{2+$8JRvv~("}:{cert}";
+            $"{string.Concat(Key.Reverse())}:{(string.IsNullOrWhiteSpace(userId) ? "Guest" : userId)}:{Core.Configs.AppSecrets.AuthorTodaySalt}:{cert}";
         var hashSecret = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(secret)));
 
         using var aes = Aes.Create();
-        const int IV_SHIFT = 16;
+        const int IV_SHIFT = Core.Configs.AppSecrets.AesIvShift;
 
         var aesKey = Encoding.UTF8.GetBytes(hashSecret)[..IV_SHIFT];
 

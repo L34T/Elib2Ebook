@@ -283,38 +283,7 @@ public class Fb2Builder : BuilderBase
 
         if (node.Name == "a")
         {
-            var href = node.Attributes["href"]?.Value ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(href))
-            {
-                if (string.IsNullOrWhiteSpace(textNode))
-                {
-                    parent.Add(node.InnerText);
-                }
-                else
-                {
-                    var tag = CreateXElement(textNode);
-                    tag.Value = node.InnerText;
-                    parent.Add(tag);
-                }
-            }
-            else
-            {
-                var a = CreateXElement("a");
-                a.SetAttributeValue(_xlink + "href", href);
-                a.Value = node.InnerText;
-
-                if (string.IsNullOrWhiteSpace(textNode))
-                {
-                    parent.Add(a);
-                }
-                else
-                {
-                    var tag = CreateXElement(textNode);
-                    tag.Add(a);
-                    parent.Add(tag);
-                }
-            }
-
+            ProcessLinkNode(parent, node, textNode);
             return;
         }
 
@@ -331,15 +300,59 @@ public class Fb2Builder : BuilderBase
 
         if (node.Name == "img")
         {
-            if (node.Attributes["src"] == null) return;
-
-            var imageElem = CreateXElement("image");
-            imageElem.SetAttributeValue(_xlink + "href", "#" + node.Attributes["src"].Value);
-            parent.Add(imageElem);
-
+            ProcessImageNode(parent, node);
             return;
         }
 
+        ProcessTextOrMappedNode(parent, node, textNode);
+    }
+
+    private void ProcessLinkNode(XElement parent, HtmlNode node, string textNode)
+    {
+        var href = node.Attributes["href"]?.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            if (string.IsNullOrWhiteSpace(textNode))
+            {
+                parent.Add(node.InnerText);
+            }
+            else
+            {
+                var tag = CreateXElement(textNode);
+                tag.Value = node.InnerText;
+                parent.Add(tag);
+            }
+        }
+        else
+        {
+            var a = CreateXElement("a");
+            a.SetAttributeValue(_xlink + "href", href);
+            a.Value = node.InnerText;
+
+            if (string.IsNullOrWhiteSpace(textNode))
+            {
+                parent.Add(a);
+            }
+            else
+            {
+                var tag = CreateXElement(textNode);
+                tag.Add(a);
+                parent.Add(tag);
+            }
+        }
+    }
+
+    private void ProcessImageNode(XElement parent, HtmlNode node)
+    {
+        if (node.Attributes["src"] == null) return;
+
+        var imageElem = CreateXElement("image");
+        imageElem.SetAttributeValue(_xlink + "href", "#" + node.Attributes["src"].Value);
+        parent.Add(imageElem);
+    }
+
+    private void ProcessTextOrMappedNode(XElement parent, HtmlNode node, string textNode)
+    {
         var nodeText = node.InnerText.HtmlDecode().CleanInvalidXmlChars();
         if (node.InnerText.StartsWith(" ")) nodeText = " " + nodeText;
 

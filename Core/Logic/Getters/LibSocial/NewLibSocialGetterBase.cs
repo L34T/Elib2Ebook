@@ -92,7 +92,7 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
     {
         return Enumerable
             .Repeat(0, length)
-            .Aggregate(string.Empty, (c, _) => c + ALPHABET_BASE[new Random().Next(ALPHABET_BASE.Length)]);
+            .Aggregate(string.Empty, (c, _) => c + ALPHABET_BASE[RandomNumberGenerator.GetInt32(ALPHABET_BASE.Length)]);
     }
 
     public override async Task Authorize()
@@ -116,15 +116,29 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
             AuthHost.MakeRelativeUri(
                 $"/auth/oauth/authorize?scope=&client_id=1&response_type=code&redirect_uri={redirectUri}&state={state}&code_challenge={challenge}&code_challenge_method=S256&prompt=consent");
 
+        var csrfToken = await FetchCsrfTokenAsync(challengeUrl);
+        var postForm = await SubmitCredentialsAsync(challengeUrl, csrfToken);
+        var authCode = await ProcessAuthorizationConsentAsync(postForm);
+        await ExchangeTokenAsync(redirectUri, secret, authCode);
+
+        Config.Logger.LogInformation("Успешно авторизовались");
+    }
+
+    private async Task<string> FetchCsrfTokenAsync(Uri challengeUrl)
+    {
         var loginForm = await Config.Client.GetHtmlDocWithTriesAsync(challengeUrl);
         var tokenInput = loginForm.QuerySelector("input[name=_token]");
         if (tokenInput is null)
             throw new Elib2EbookParseException(
                 "Не удалось получить csrf токен формы авторизации сайта (возможно, заблокировал DDoS-Guard)");
+        return tokenInput.Attributes["value"].Value;
+    }
 
+    private async Task<HtmlNode> SubmitCredentialsAsync(Uri challengeUrl, string csrfToken)
+    {
         var payload = new Dictionary<string, string>
         {
-            { "_token", tokenInput.Attributes["value"].Value },
+            { "_token", csrfToken },
             { "login", Config.Options.Login },
             { "password", Config.Options.Password }
         };
@@ -135,6 +149,7 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
         if (login.QuerySelector(".g-recaptcha") is not null)
             throw new Elib2EbookParseException(
                 "Авторизация заблокирована капчей. Укажите --flare с адресом FlareSolverr");
+
         var error = login.QuerySelector(".form-field__error");
         if (error is not null && !string.IsNullOrWhiteSpace(error.InnerText))
             throw new Elib2EbookAuthException($"Не удалось авторизоваться. {error.InnerText.Trim()}");
@@ -144,7 +159,12 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
             throw new Elib2EbookAuthException(
                 "Не удалось получить форму подтверждения OAuth на сайте (проверьте логин/пароль)");
 
-        payload = postForm
+        return postForm;
+    }
+
+    private async Task<string> ProcessAuthorizationConsentAsync(HtmlNode postForm)
+    {
+        var payload = postForm
             .QuerySelectorAll("input[type=hidden]")
             .ToDictionary(input => input.Attributes["name"].Value, input => input.Attributes["value"].Value);
 
@@ -160,6 +180,11 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
         if (string.IsNullOrWhiteSpace(authCode))
             throw new Elib2EbookAuthException("Сайт не вернул code после авторизации (проверьте логин/пароль)");
 
+        return authCode;
+    }
+
+    private async Task ExchangeTokenAsync(Uri redirectUri, string secret, string authCode)
+    {
         var tokenResponse = await Config.Client.PostAsync(ApiHost.MakeRelativeUri("/api/auth/oauth/token"),
             JsonContent.Create(new
             {
@@ -188,7 +213,6 @@ public abstract class NewLibSocialGetterBase(BookGetterConfig config) : GetterBa
             throw new Elib2EbookAuthException("Сайт не вернул access token. Проверьте корректность логина и пароля");
 
         Config.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
-        Config.Logger.LogInformation("Успешно авторизовались");
     }
 
     protected override string GetId(Uri url)

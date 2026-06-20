@@ -25,16 +25,16 @@ namespace Core.Logic.Getters;
 
 public class MyBookGetter(BookGetterConfig config) : GetterBase(config)
 {
-    private const string CONSUMER_KEY = "830968793b2a44c688400319f4a77231";
-    private const string CONSUMER_SECRET = "HhaxXsMryrLz49R4";
-    private const string IDENTIFIER = "47b17a4c8231a28f06c6c836d0b5f6f2134cb74d";
+    private const string CONSUMER_KEY = AppSecrets.MyBookConsumerKey;
+    private const string CONSUMER_SECRET = AppSecrets.MyBookConsumerSecret;
+    private const string IDENTIFIER = AppSecrets.MyBookIdentifier;
 
     private HttpClient _apiClient;
 
     private MyBookAuth _token = new()
     {
-        Secret = "fYFPndYhOTW6YxIJ",
-        Token = "f8d32ef906664ed3a1525b7298aac461"
+        Secret = AppSecrets.MyBookDefaultAuthSecret,
+        Token = AppSecrets.MyBookDefaultAuthToken
     };
 
     protected override Uri SystemUrl => new("https://mybook.ru/");

@@ -24,9 +24,9 @@ namespace Core.Logic.Getters.Litnet;
 
 public abstract class LitnetGetterBase(BookGetterConfig config) : GetterBase(config)
 {
-    private const string SECRET = "14a6579a984b3c6abecda6c2dfa83a64";
+    private const string SECRET = AppSecrets.LitnetSecret;
 
-    private static string DeviceId = Guid.NewGuid().ToString().ToUpperInvariant();
+    private string DeviceId = Guid.NewGuid().ToString().ToUpperInvariant();
     private Uri ApiUrl => new($"https://api.{SystemUrl.Host}/");
 
     //cloudflare :(
@@ -44,7 +44,7 @@ public abstract class LitnetGetterBase(BookGetterConfig config) : GetterBase(con
     private static byte[] Decrypt(string text)
     {
         using var aes = Aes.Create();
-        const int IV_SHIFT = 16;
+        const int IV_SHIFT = AppSecrets.AesIvShift;
 
         aes.Key = Encoding.UTF8.GetBytes(SECRET);
         aes.IV = Encoding.UTF8.GetBytes(text)[..IV_SHIFT];
@@ -59,7 +59,7 @@ public abstract class LitnetGetterBase(BookGetterConfig config) : GetterBase(con
         return output.ToArray()[IV_SHIFT..];
     }
 
-    private static string GetSign(string token)
+    private string GetSign(string token)
     {
         var inputBytes = Encoding.ASCII.GetBytes(DeviceId + SECRET + (token ?? string.Empty));
         var hashBytes = MD5.HashData(inputBytes);

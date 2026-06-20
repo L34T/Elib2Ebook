@@ -19,8 +19,8 @@ namespace Core.Logic.Getters.Novelxo;
 
 public abstract class NovelxoGetterBase(BookGetterConfig config) : GetterBase(config)
 {
-    private static readonly byte[] Key = StringToByteArray("61626326312a7e235e325e2373305e3d295e5e3725623334");
-    private static readonly byte[] IV = StringToByteArray("31323334353637383930383533373237");
+    private static readonly byte[] Key = StringToByteArray(AppSecrets.NovelxoKeyHex);
+    private static readonly byte[] IV = StringToByteArray(AppSecrets.NovelxoIvHex);
 
     protected override string GetId(Uri url)
     {
