@@ -1,28 +1,37 @@
-**/bin/*
-**/obj/*
-**_ReSharper*
-**/.sonar/*
-**.suo
-**.user
-**.dbmdl
-**.schemaview
-DB/**/sql
-**.orig
-**.rdl.data
-**/StyleCopViolations.xml
-_references.js
-*_*_*.csproj.swp
-*_*_*.csproj
-*.nupkg
-**/node_modules/**
-**/react-widgets/dist/**
-**/react-widgets/*.log
-**/.idea/
-**/logs/**
-dist
-.dist
-**/.vs/
-.vscode/launch.json
-.vscode/tasks.json
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.vs/
+*.DotSettings.user
+*.csproj.user
 
+# IDE
+.idea/
+*/.idea/
+.vs/
+.vscode/
+_ReSharper*/
+
+# Build
+dist/
+.dist/
+*.nupkg
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for any future frontend dependencies)
+node_modules/
+
+# NuGet
+packages/
+*.nuget.props
+*.nuget.targets
+
+# dotnet tools
 .dotnet/

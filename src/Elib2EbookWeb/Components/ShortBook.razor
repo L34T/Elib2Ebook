@@ -1,0 +1,82 @@
+@using Elib2Ebook.Domain.Book
+
+<div class="book-card">
+    <div class="book-card-cover">
+        <img src="@_cover" alt="Обложка"/>
+    </div>
+    <div class="book-card-info">
+        <a class="book-card-title" href="@Book.Url.ToString()" target="_blank" rel="noopener">
+            @Book.Title
+        </a>
+
+        @if (Book.Author != null)
+        {
+            <div class="book-card-meta">
+                <span>Автор: </span>
+                @if (Book.Author.Url == null)
+                {
+                    <span>@Book.Author.Name</span>
+                }
+                else
+                {
+                    <a href="@Book.Author.Url.ToString()" target="_blank" rel="noopener">@Book.Author.Name</a>
+                }
+            </div>
+        }
+
+        @if (Book.Seria != null)
+        {
+            <div class="book-card-meta">
+                <span>Серия: </span>
+                @if (Book.Seria?.Url == null)
+                {
+                    <span>@Seria</span>
+                }
+                else
+                {
+                    <a href="@Book.Seria.Url.ToString()" target="_blank" rel="noopener">@Seria</a>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Book.Annotation))
+        {
+            <div class="book-card-annotation">@((MarkupString)Book.Annotation)</div>
+        }
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public required Book Book { get; set; }
+
+    private string _cover;
+
+    private string _coverPath;
+
+    private string Seria => Book.Seria?.Name + (string.IsNullOrWhiteSpace(Book.Seria?.Number) ? string.Empty : $" #{Book.Seria.Number}");
+
+    protected override Task OnInitializedAsync()
+    {
+        InitCover();
+        return base.OnInitializedAsync();
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (Book.Cover?.FilePath != _coverPath)
+        {
+            InitCover();
+        }
+
+        return base.OnParametersSetAsync();
+    }
+
+    private void InitCover()
+    {
+        _cover = Book.Cover != null && Book.Cover.Content.Length > 0 ? $"data:image/png;base64, {Convert.ToBase64String(Book.Cover.Content)}" : _cover;
+        _coverPath = Book.Cover?.FilePath;
+    }
+
+}
